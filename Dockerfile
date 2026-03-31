@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y libonig-dev && rm -rf /var/lib/apt/list
 RUN docker-php-ext-install mbstring
 
 # Включаем mod_headers на случай будущих заголовков безопасности
+RUN a2dismod mpm_event mpm_worker; a2enmod mpm_prefork
 RUN a2enmod headers
 
 COPY dashboard/ /var/www/html/
