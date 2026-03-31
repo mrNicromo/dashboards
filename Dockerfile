@@ -15,4 +15,8 @@ COPY dashboard/ /var/www/html/
 RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
     && chown -R www-data:www-data /var/www/html/cache /var/www/html/snapshots
 
-EXPOSE 80
+# Railway injects PORT env variable — configure Apache to listen on it
+RUN echo 'Listen ${PORT}' > /etc/apache2/ports.conf && \
+    sed -i 's/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/' /etc/apache2/sites-enabled/000-default.conf
+
+EXPOSE ${PORT}
