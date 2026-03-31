@@ -3,6 +3,7 @@ FROM php:8.2-apache
 WORKDIR /var/www/html
 
 # Минимально нужные расширения для текущего проекта
+RUN apt-get update && apt-get install -y libonig-dev && rm -rf /var/lib/apt/lists/*
 RUN docker-php-ext-install mbstring
 
 # Включаем mod_headers на случай будущих заголовков безопасности
