@@ -223,6 +223,9 @@ airtable/
     config.sample.php # шаблон конфига
     cache/            # кэш JSON (создаётся автоматически)
     GUIDE.md          # полная инструкция
+    airtable-fields.md   # какие поля Airtable использует дашборд
+    local-daily-use.md     # локальный ежедневный сценарий
+    open-dashboard.command # быстрый запуск из dashboard/ (macOS)
   portable/           # macOS: переносимый PHP (может появиться после первого запуска)
 ```
 

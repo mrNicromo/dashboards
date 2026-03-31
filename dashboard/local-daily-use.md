@@ -8,7 +8,7 @@
 
 ## 1) Быстрый старт (одним файлом)
 
-1. Двойной клик по файлу `Запуск дашборда.command` (в корне проекта).
+1. Двойной клик по файлу `open-dashboard.command` (в папке `dashboard/`).
 
 Что делает файл:
 - если локальный сервер еще не запущен, запускает его;
@@ -83,13 +83,13 @@ Playwright поднимет `node dashboard/serve.mjs` на порту `9876` и
 
 ## 5) Автостарт локального сервера (macOS, опционально)
 
-В папке лежит шаблон `com.airtable.dz-dashboard.plist.example`.
+В папке лежит шаблон `launchd-dashboard.plist.example` (label `com.anyquery.dashboard` — как в `autostart_api.php`).
 
-1. Скопируйте файл в `~/Library/LaunchAgents/com.airtable.dz-dashboard.plist`.
+1. Скопируйте файл в `~/Library/LaunchAgents/com.anyquery.dashboard.plist`.
 2. Загрузите:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.airtable.dz-dashboard.plist
+launchctl load ~/Library/LaunchAgents/com.anyquery.dashboard.plist
 ```
 
 3. После входа в систему сервер будет запускаться автоматически.

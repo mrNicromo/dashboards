@@ -17,6 +17,8 @@
 
 Подробности и переменные окружения: [README.md](../README.md) в корне проекта.
 
+Дополнительно в `dashboard/`: [airtable-fields.md](airtable-fields.md) (какие поля Airtable читает код), [local-daily-use.md](local-daily-use.md) (локальный ежедневный сценарий), скрипт [open-dashboard.command](open-dashboard.command) — быстрый запуск сервера из папки `dashboard/`.
+
 Ниже в разделе 2 описана **ручная** установка PHP и сервера — она нужна только если лаунчер не подходит.
 
 ---
