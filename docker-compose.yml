@@ -1,0 +1,13 @@
+services:
+  airtable-dashboard:
+    build: .
+    container_name: airtable-dashboard
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      AIRTABLE_PAT: ${AIRTABLE_PAT:-}
+      AIRTABLE_BASE_ID: ${AIRTABLE_BASE_ID:-}
+    volumes:
+      - ./dashboard/cache:/var/www/html/cache
+      - ./dashboard/snapshots:/var/www/html/snapshots

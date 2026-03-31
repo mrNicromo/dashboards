@@ -1,0 +1,10 @@
+_old
+portable
+.git
+.claude
+**/.DS_Store
+dashboard/cache/*
+!dashboard/cache/.gitkeep
+dashboard/snapshots/*
+!dashboard/snapshots/.gitkeep
+dashboard/.local-server.log

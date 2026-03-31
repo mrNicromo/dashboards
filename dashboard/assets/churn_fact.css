@@ -1,0 +1,463 @@
+/* =========================================================
+   churn_fact.css — Стили «Потери выручки»
+   ========================================================= */
+
+:root,
+[data-theme="dark"] {
+  --cf-accent:  #7B61FF;
+  --cf-danger:  #FF453A;
+  --cf-warn:    #FF9F0A;
+  --cf-ok:      #34C759;
+  --cf-bg:      #0d0d12;
+  --cf-surface: #16161e;
+  --cf-card:    #1c1c26;
+  --cf-border:  rgba(255,255,255,0.08);
+  --cf-muted:   #8E9AAB;
+  --cf-text:    #E2E8F0;
+  --cf-elevated:#1E2A3B;
+}
+[data-theme="light"] {
+  --cf-accent:  #6B51EF;
+  --cf-danger:  #E3342F;
+  --cf-warn:    #E07B09;
+  --cf-ok:      #27AE60;
+  --cf-bg:      #f4f4f8;
+  --cf-surface: #ffffff;
+  --cf-card:    #f9f9fc;
+  --cf-border:  rgba(0,0,0,0.09);
+  --cf-muted:   #5c6b7e;
+  --cf-text:    #1a2332;
+  --cf-elevated:#f0f3f8;
+}
+
+body { margin:0; background:var(--cf-bg); font-family:var(--font,system-ui,sans-serif); color:var(--text,#e8e8f0); }
+
+/* ── Layout ── */
+.cf-wrap { max-width:1440px; margin:0 auto; padding:0 20px 40px; }
+
+/* ── Topbar ── */
+.cf-topbar {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:0 20px; min-height:60px;
+  background:var(--cf-surface); border-bottom:1px solid var(--cf-border);
+  position:sticky; top:0; z-index:100; flex-wrap:wrap;
+}
+.cf-topbar-left  { display:flex; align-items:center; gap:14px; padding:8px 0; }
+.cf-topbar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 0; }
+.cf-title { font-size:1.05rem; font-weight:800; color:var(--text); }
+.cf-sub   { font-size:0.72rem; color:var(--muted,#888); margin-top:1px; }
+
+/* ── Nav-вкладки (единый стиль для всех страниц) ── */
+.cf-nav-tabs { display:flex; align-items:center; gap:2px; }
+.cf-nav-tab {
+  padding:5px 12px; border-radius:8px; font-size:0.78rem; font-weight:500;
+  color:var(--cf-muted); text-decoration:none; border:none; background:none;
+  cursor:pointer; transition:color .15s, background .15s; white-space:nowrap; font-family:inherit;
+}
+.cf-nav-tab:hover { color:var(--cf-text); background:rgba(123,97,255,.08); }
+.cf-nav-tab-active {
+  color:var(--cf-accent); background:rgba(123,97,255,.12);
+  font-weight:700; cursor:default;
+}
+
+/* ── Бейдж свежести данных ── */
+.cf-fresh-badge {
+  font-size:0.72rem; color:var(--cf-muted);
+  padding:3px 8px; border-radius:6px; border:1px solid var(--cf-border);
+  white-space:nowrap;
+}
+
+.aq-logo { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.aq-logo-box  { background:var(--cf-accent); color:#fff; font-size:0.65rem; font-weight:900; border-radius:6px; padding:4px 6px; }
+.aq-logo-text { font-size:0.85rem; font-weight:700; color:var(--muted,#888); }
+
+.btn-topbar {
+  padding:5px 12px; border-radius:8px; border:1px solid var(--cf-border);
+  background:transparent; color:var(--text); font-size:0.78rem; font-family:inherit;
+  cursor:pointer; text-decoration:none; transition:border-color .15s, background .15s; white-space:nowrap;
+}
+.btn-topbar:hover { border-color:var(--cf-accent); background:rgba(123,97,255,.08); }
+.btn-topbar.btn-icon { padding:5px 9px; font-size:1rem; }
+.btn-topbar.is-loading { animation:cf-spin .7s linear infinite; opacity:.7; }
+
+/* ── Индикатор свежести ── */
+#cf-freshness { color:var(--cf-accent); font-weight:600; }
+
+/* ── Спиннер обновления (маленькая точка в topbar) ── */
+.cf-spin-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:var(--cf-accent);
+  display:inline-block; flex-shrink:0;
+  animation:cf-pulse 1s ease-in-out infinite;
+}
+@keyframes cf-pulse {
+  0%,100% { opacity:.3; transform:scale(.8); }
+  50%      { opacity:1;  transform:scale(1.2); }
+}
+@keyframes cf-spin {
+  to { transform:rotate(360deg); }
+}
+.cf-topbar--loading { border-bottom-color:var(--cf-accent); }
+
+/* ── Stale/backup banner ── */
+.cf-stale-banner {
+  background:rgba(255,159,10,.12); border-bottom:1px solid rgba(255,159,10,.3);
+  color:var(--cf-warn); font-size:0.78rem; text-align:center;
+  padding:7px 16px; font-weight:600;
+}
+
+/* ── Поиск по клиенту ── */
+.cf-search-input {
+  height:30px; padding:0 10px 0 28px; border-radius:8px;
+  border:1px solid var(--cf-border); background:var(--cf-elevated);
+  color:var(--cf-text); font-size:0.78rem; font-family:inherit;
+  outline:none; width:180px; max-width:100%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238E9AAB' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:8px center;
+  transition:border-color .15s, box-shadow .15s;
+}
+.cf-search-input:focus {
+  border-color:var(--cf-accent); box-shadow:0 0 0 2px rgba(123,97,255,.18);
+}
+.cf-search-input::placeholder { color:var(--cf-muted); }
+
+/* ── Export CSV кнопка ── */
+.btn-export {
+  padding:4px 10px; border-radius:7px; border:1px solid var(--cf-border);
+  background:transparent; color:var(--muted,#888); font-size:0.75rem;
+  cursor:pointer; transition:color .15s, border-color .15s; white-space:nowrap;
+}
+.btn-export:hover { color:var(--cf-accent); border-color:var(--cf-accent); }
+
+/* ── Section labels ── */
+.cf-section-label {
+  font-size:0.72rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.07em; color:var(--muted,#888);
+  padding:16px 0 6px;
+}
+
+/* ── KPI grid ── */
+.cf-kpis     { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.cf-kpis-seg { margin-top:6px; }
+@media(max-width:1100px) { .cf-kpis { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:600px)  { .cf-kpis { grid-template-columns:1fr; } }
+
+.cf-kpi {
+  background:var(--cf-card); border:1px solid var(--cf-border); border-radius:12px;
+  padding:14px 16px; display:flex; gap:10px; align-items:flex-start;
+  transition:transform .1s, border-color .2s; cursor:default;
+}
+.cf-kpi:hover { transform:translateY(-1px); border-color:var(--cf-accent); }
+.cf-kpi.kpi-danger  { border-left:3px solid var(--cf-danger); }
+.cf-kpi.kpi-warn    { border-left:3px solid var(--cf-warn); }
+.cf-kpi.kpi-ok      { border-left:3px solid var(--cf-ok); }
+.cf-kpi.kpi-neutral { border-left:3px solid var(--cf-border); }
+
+.cf-kpi-icon { font-size:1.3rem; flex-shrink:0; padding-top:2px; }
+.cf-kpi-body { flex:1; min-width:0; }
+.cf-kpi-lbl  { font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted,#888); margin-bottom:4px; }
+.cf-kpi-val  { font-size:1.1rem; font-weight:800; color:var(--text); line-height:1.1; }
+.cf-kpi-sub  { font-size:0.72rem; color:var(--muted,#888); margin-top:3px; }
+
+.cf-kpi.kpi-danger .cf-kpi-val { color:var(--cf-danger); }
+.cf-kpi.kpi-ok     .cf-kpi-val { color:var(--cf-ok); }
+
+.dev-ok  { color:var(--cf-ok); }
+.dev-bad { color:var(--cf-danger); }
+
+/* ── Forecast block ── */
+.cf-forecast-block {
+  background:var(--cf-card); border:1px solid rgba(123,97,255,.3);
+  border-radius:12px; padding:16px 20px; margin-top:16px;
+}
+.cf-forecast-title { font-size:0.9rem; font-weight:800; color:var(--text); margin-bottom:12px; }
+.cf-forecast-row   { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+.cf-forecast-kpi   { flex:1; min-width:160px; }
+.cf-forecast-lbl   { font-size:0.68rem; color:var(--muted,#888); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.cf-forecast-val   { font-size:1.3rem; font-weight:800; color:var(--cf-accent); }
+.cf-forecast-sub   { font-size:0.72rem; color:var(--muted,#888); margin-top:3px; }
+.cf-forecast-formula {
+  flex:1; min-width:220px;
+  background:rgba(123,97,255,.06); border:1px solid rgba(123,97,255,.15);
+  border-radius:8px; padding:10px 14px;
+}
+.cf-formula-title { font-size:0.7rem; font-weight:700; color:var(--muted,#888); margin-bottom:6px; }
+.cf-formula-body  { font-size:0.78rem; color:var(--text); line-height:1.7; font-family:monospace; }
+.cf-forecast-seg-row {
+  display:flex; gap:14px; flex-wrap:wrap; margin-top:14px;
+  padding-top:14px; border-top:1px solid rgba(255,255,255,.06);
+}
+.cf-forecast-seg-card {
+  flex:1; min-width:200px;
+  background:rgba(123,97,255,.05); border:1px solid rgba(123,97,255,.15);
+  border-radius:8px; padding:10px 14px;
+}
+.cf-forecast-seg-label { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted,#888); margin-bottom:4px; }
+.cf-forecast-seg-val   { font-size:1.1rem; font-weight:800; color:var(--cf-accent); }
+.cf-forecast-seg-sub   { font-size:0.72rem; color:var(--muted,#888); margin-top:2px; }
+.cf-forecast-seg-dev   { font-size:0.78rem; font-weight:700; margin-top:4px; }
+
+/* ── Sections ── */
+.cf-section { background:var(--cf-card); border:1px solid var(--cf-border); border-radius:12px; overflow:hidden; }
+.cf-section-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 20px 10px; border-bottom:1px solid var(--cf-border); flex-wrap:wrap; gap:8px;
+}
+.cf-section-head h2 { margin:0; font-size:1rem; font-weight:800; color:var(--text); }
+
+/* ── Cards ── */
+.cf-mid-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+@media(max-width:900px) { .cf-mid-row { grid-template-columns:1fr; } }
+
+.cf-card { background:var(--cf-card); border:1px solid var(--cf-border); border-radius:12px; overflow:hidden; }
+.cf-card-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 10px; border-bottom:1px solid var(--cf-border); }
+.cf-card-head h3 { margin:0; font-size:0.9rem; font-weight:700; color:var(--text); }
+
+/* ── Tabs ── */
+.cf-tabs { display:flex; gap:6px; }
+.cf-tab {
+  padding:5px 14px; border-radius:7px; border:1px solid var(--cf-border);
+  background:var(--cf-card); color:var(--muted,#888); font-size:0.78rem;
+  font-family:inherit; cursor:pointer; transition:all .15s;
+}
+.cf-tab.active { border-color:var(--cf-accent); color:var(--text); background:rgba(123,97,255,.1); }
+.cf-tab:hover:not(.active) { border-color:var(--cf-accent); }
+
+/* ── Tables ── */
+.table-wrap { overflow-x:auto; }
+.cf-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+.cf-table thead th {
+  padding:9px 12px; text-align:left; font-size:0.67rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:.05em; color:var(--muted,#888);
+  background:var(--cf-card); border-bottom:1px solid var(--cf-border); white-space:nowrap;
+  position:sticky; top:0; z-index:2;
+}
+.cf-table thead th.th-num { text-align:right; }
+.cf-table tbody tr { border-bottom:1px solid var(--cf-border); transition:background .1s; }
+.cf-table tbody tr:last-child { border-bottom:none; }
+.cf-table tbody tr:hover { background:rgba(123,97,255,.05); }
+.cf-table td { padding:9px 12px; vertical-align:middle; color:var(--text); }
+.cf-table td.num    { text-align:right; font-variant-numeric:tabular-nums; }
+.cf-table td.strong { font-weight:700; }
+.cf-table td.muted  { color:var(--muted,#888); }
+
+.empty-state { text-align:center; padding:28px !important; color:var(--muted,#888); font-size:0.85rem; }
+
+/* ── Mini bar ── */
+.mini-bar { height:8px; border-radius:4px; background:rgba(255,255,255,.06); overflow:hidden; }
+.mini-bar-fill { height:100%; border-radius:4px; transition:width .4s; }
+
+/* ── Product tags ── */
+.prod-tag {
+  display:inline-block; padding:2px 7px; border-radius:4px;
+  font-size:0.68rem; font-weight:600;
+  background:rgba(255,255,255,.07); color:var(--text);
+  border:1px solid var(--cf-border); margin:1px;
+}
+
+/* ── Progress bar ── */
+#aq-pbar {
+  position:fixed; top:0; left:0; right:0; height:3px;
+  z-index:9999; background:rgba(255,255,255,0.05); transition:opacity .3s;
+}
+#aq-pbar-fill {
+  height:100%;
+  background:linear-gradient(90deg,var(--cf-accent) 0%,#FF9F0A 100%);
+  width:0%; transition:width .2s ease; border-radius:0 2px 2px 0;
+}
+
+/* ── Loading & Error ── */
+.cf-loading {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:60vh; gap:16px; color:var(--cf-muted);
+}
+.ch-spinner-dots { display:flex; gap:8px; }
+.ch-spinner-dots span {
+  width:10px; height:10px; border-radius:50%;
+  background:var(--cf-accent);
+  animation:dot-bounce 1.4s ease-in-out infinite;
+}
+.ch-spinner-dots span:nth-child(2) { animation-delay:.2s; }
+.ch-spinner-dots span:nth-child(3) { animation-delay:.4s; }
+.ch-loading-title { font-size:1rem; font-weight:600; color:var(--cf-text); }
+.ch-loading-sub   { font-size:.78rem; color:var(--cf-muted); }
+@keyframes dot-bounce {
+  0%,80%,100% { transform:scale(.55); opacity:.5; }
+  40%         { transform:scale(1);   opacity:1; }
+}
+.spinner {
+  width:36px; height:36px;
+  border:3px solid rgba(123,97,255,.2); border-top-color:var(--cf-accent);
+  border-radius:50%; animation:spin .7s linear infinite;
+}
+@keyframes spin    { to { transform:rotate(360deg); } }
+@keyframes fadeIn  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.cf-wrap > * { animation:fadeIn .25s ease; }
+
+.cf-error {
+  margin:12px; padding:12px 16px; border-radius:8px;
+  background:rgba(255,69,58,.1); border:1px solid rgba(255,69,58,.3);
+  color:#FF453A; font-size:0.85rem;
+}
+.spin { display:inline-block; animation:spin .7s linear infinite; }
+
+/* ── KPI дельта vs снэпшот (E5) ─────────────────────────── */
+.cf-kpi-delta {
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+.delta-up   { color: var(--cf-danger, #FF453A); }
+.delta-down { color: var(--cf-ok, #30D158); }
+.delta-same { color: var(--cf-muted, #8E9AAB); }
+
+/* ── Badge актуальности данных (E5) ─────────────────────── */
+.cf-fresh-badge {
+  font-size: 0.72rem;
+  color: var(--cf-ok, #30D158);
+  background: rgba(48,209,88,.12);
+  border-radius: 5px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* ── Светофор прогноза (E5) ─────────────────────────────── */
+.tl-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.tl-green  { background: rgba(48,209,88,.2);  color: #30D158; }
+.tl-yellow { background: rgba(255,214,10,.2); color: #FFD60A; }
+.tl-red    { background: rgba(255,69,58,.2);  color: #FF453A; }
+
+/* ── Девиация прогноза сегмента (E5) ────────────────────── */
+.cf-forecast-seg-dev {
+  font-size: 0.78rem;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cf-dev-ok   { color: var(--cf-ok, #30D158); }
+.cf-dev-warn { color: var(--cf-warn, #FFD60A); }
+.cf-dev-bad  { color: var(--cf-danger, #FF453A); }
+
+/* ── Навигационные табы (E1) ────────────────────────────── */
+.cf-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.cf-nav-tab {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--cf-muted, #8E9AAB);
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.cf-nav-tab:hover { background: var(--cf-elevated, #1E2A3B); color: var(--cf-text, #E2E8F0); }
+.cf-nav-tab-active { background: rgba(123,97,255,.15) !important; color: var(--cf-accent, #7B61FF) !important; font-weight: 600; }
+
+/* ── Фильтр диапазона месяцев (F4) + сравнение (F3) ─────── */
+.cf-period-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--cf-card);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--radius, 10px);
+  margin-bottom: 4px;
+}
+.cf-period-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cf-period-label {
+  font-size: 0.82rem;
+  color: var(--cf-muted);
+  white-space: nowrap;
+}
+.cf-period-sep { color: var(--cf-muted); font-size: 0.82rem; }
+.cf-period-sel {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-surface);
+  color: var(--cf-text, var(--text));
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cf-period-sel:focus { outline: none; border-color: var(--cf-accent); }
+.cf-period-reset {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--cf-border);
+  background: transparent;
+  color: var(--cf-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.cf-period-reset:hover { color: var(--cf-danger); border-color: var(--cf-danger); }
+.cf-period-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+.cf-period-total { color: var(--cf-muted); }
+.cf-period-total strong { color: var(--cf-text, var(--text)); }
+.cf-period-delta {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.cf-period-delta.delta-up   { color: var(--cf-danger); background: rgba(255,69,58,.1); }
+.cf-period-delta.delta-down { color: var(--cf-ok); background: rgba(48,209,88,.1); }
+
+/* ── Тултипы (ℹ иконка) — popup через JS (position:fixed) ── */
+.tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cf-muted);
+  border: 1px solid var(--cf-muted);
+  cursor: help;
+  vertical-align: middle;
+  margin-left: 5px;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+.tip-icon:hover { opacity: 1; color: var(--cf-text); border-color: var(--cf-text); }
+
+/* Светлая тема для JS-тултипа */
+[data-theme="light"] #cf-tooltip {
+  background: #ffffff !important;
+  color: #1a2332 !important;
+  border-color: rgba(0,0,0,0.18) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+}

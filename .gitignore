@@ -1,0 +1,20 @@
+# Secrets
+dashboard/config.php
+.env
+.env.*
+
+# Runtime data
+dashboard/cache/*
+!dashboard/cache/.gitkeep
+dashboard/snapshots/*
+!dashboard/snapshots/.gitkeep
+dashboard/.aq_setup_done
+dashboard/.local-server.log
+dashboard/.server.log
+dashboard/.local-server.err.log
+
+# Local artifacts
+portable/
+_old/
+.claude/
+.DS_Store
