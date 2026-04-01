@@ -978,6 +978,14 @@
 .wkly-legend-total::before  { background: var(--chart-total); }
 .wkly-legend-overdue::before{ background: var(--chart-over); }
 .wkly-legend-pay::before    { background: var(--chart-pay); }
+.wk-pay-card { cursor: pointer; }
+.wk-pay-card .wkly-chart { transition: opacity .15s; }
+.wk-pay-card:hover .wkly-chart { opacity: .95; }
+.wk-pay-expand { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.wk-pay-expand-kpis { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
+.wk-pay-expand-kpis strong { color: var(--text); }
+.wk-pay-expand-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .wk-pay-expand-cols { grid-template-columns: 1fr; } }
 .wk-current-week { position: relative; cursor: help; }
 .wk-current-pop {
   display: none;

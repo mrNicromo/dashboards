@@ -61,6 +61,7 @@
     detailPage:     0,
     modalClient:    null,
     detailGrouped:  false,
+    weeklyPayExpanded: false,
   };
 
   const saveExcluded = () => localStorage.setItem(LS_KEY, JSON.stringify([...state.excluded]));
@@ -1043,8 +1044,57 @@
     const deltaCls = delta > 0 ? 'delta-down' : delta < 0 ? 'delta-up' : ''; // оплаты: рост = хорошо
     const deltaSign = delta > 0 ? '+' : '';
 
+    const top5 = d.payments?.top5 || [];
+    const fromTop10 = d.payments?.fromTop10 || [];
+    const details = state.weeklyPayExpanded ? `
+      <div class="wk-pay-expand">
+        <div class="wk-pay-expand-kpis">
+          <span>Итого: <strong>${fmtRub(d.payments?.weekTotal || 0)}</strong></span>
+          <span>Клиентов оплатили: <strong>${d.payments?.count || 0}</strong></span>
+          <span>Из ТОП-10: <strong>${fromTop10.length}</strong></span>
+        </div>
+        <div class="wk-pay-expand-cols">
+          <div>
+            <div class="mgr-section-sub">ТОП-5 крупнейших оплат</div>
+            <div class="mgr-table-wrap">
+              <table class="mgr-table">
+                <thead><tr><th>#</th><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
+                <tbody>
+                  ${top5.length ? top5.map((r, i) => `
+                    <tr>
+                      <td class="idx">${i + 1}</td>
+                      <td><strong>${esc(r.client)}</strong></td>
+                      <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
+                      <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
+                    </tr>
+                  `).join('') : '<tr><td colspan="4" class="empty-state">Нет оплат</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <div class="mgr-section-sub">Оплатили из ТОП-10 дебиторов</div>
+            <div class="mgr-table-wrap">
+              <table class="mgr-table">
+                <thead><tr><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
+                <tbody>
+                  ${fromTop10.length ? fromTop10.map((r) => `
+                    <tr>
+                      <td><strong>${esc(r.client)}</strong></td>
+                      <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
+                      <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
+                    </tr>
+                  `).join('') : '<tr><td colspan="3" class="empty-state">Никто из ТОП-10 не оплатил</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    ` : '';
+
     return `
-      <div class="mgr-section">
+      <div class="mgr-section wk-pay-card ${state.weeklyPayExpanded ? 'expanded' : ''}" id="wk-pay-card">
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">💳 Оплаты по неделям
@@ -1070,6 +1120,7 @@
         <div class="wkly-chart">
           ${cols.join('')}
         </div>
+        ${details}
       </div>`;
   }
 
@@ -1689,6 +1740,11 @@
 
     // Обновить вручную
     document.getElementById('btn-refresh')?.addEventListener('click', doRefresh);
+    document.getElementById('wk-pay-card')?.addEventListener('click', (e) => {
+      if (e.target.closest('a,button,input,select,textarea')) return;
+      state.weeklyPayExpanded = !state.weeklyPayExpanded;
+      render();
+    });
 
     // Фильтр-чипы групп
     document.querySelectorAll('[data-grp]').forEach(chip => {
