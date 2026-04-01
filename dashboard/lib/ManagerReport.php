@@ -171,6 +171,47 @@ final class ManagerReport
         return $wp;
     }
 
+    /**
+     * Если enrich не собрал lines, подставляем из payments.all по диапазону недели (та же логика, что у KPI).
+     *
+     * @param array<string, mixed> $wp
+     * @param list<array{client: string, amount: float, date: string}> $all
+     * @return array<string, mixed>
+     */
+    private static function mergeWeeklyPayLinesFromPaymentsAll(array $wp, array $all): array
+    {
+        if (($wp['error'] ?? null) !== null || $all === []) {
+            return $wp;
+        }
+        foreach ($wp['bars'] ?? [] as &$bar) {
+            $lines = $bar['lines'] ?? [];
+            if (is_array($lines) && count($lines) > 0) {
+                continue;
+            }
+            $ws = (string) ($bar['weekStart'] ?? '');
+            $we = (string) ($bar['weekEnd'] ?? '');
+            if ($ws === '' || $we === '') {
+                continue;
+            }
+            $filled = [];
+            foreach ($all as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $dt = substr((string) ($p['date'] ?? ''), 0, 10);
+                if ($dt !== '' && $dt >= $ws && $dt <= $we) {
+                    $filled[] = $p;
+                }
+            }
+            if ($filled !== []) {
+                $bar['lines'] = $filled;
+            }
+        }
+        unset($bar);
+
+        return $wp;
+    }
+
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
@@ -203,6 +244,10 @@ final class ManagerReport
         // Еженедельные оплаты: недели + по дням + сырые поля → обогащаем подписью клиента
         $wp = DzWeekPayments::weeklyPaidSeries($pat, $baseId, self::DEBT_TABLE, self::PAID_VIEW, 12, true);
         $report['weeklyPayments'] = self::enrichWeeklyPayments($wp, $report['legalSiteMap'] ?? [], $siteFieldName);
+        $report['weeklyPayments'] = self::mergeWeeklyPayLinesFromPaymentsAll(
+            $report['weeklyPayments'],
+            $report['payments']['all'] ?? []
+        );
         unset($report['legalSiteMap']);
 
         // Мета MRR (месяц обновления, дата, заметка)
@@ -533,23 +578,23 @@ final class ManagerReport
             if ($payDate === '' || $payDate < $prevWed || $payDate > $thisWed) {
                 continue;
             }
-            $client = trim((string) ($f['ЮЛ клиента'] ?? ''));
-            if ($client === '') {
-                continue;
-            }
+            $rid     = (string) ($r['id'] ?? '');
+            $rawЮл   = trim((string) ($f['ЮЛ клиента'] ?? ''));
+            // Ключ агрегации: ЮЛ или id записи (в оплаченном виде ЮЛ часто пустой — иначе график ≠ таблица)
+            $clientKey = $rawЮл !== '' ? $rawЮл : ($rid !== '' ? $rid : uniqid('pay_', true));
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
             $directSite = self::extractSiteFromFields($f, $siteFieldName);
-            $mappedSite = $directSite !== '' ? $directSite : ($siteByLegal[self::normKey($client)] ?? ($clients[$client]['site'] ?? ''));
-            $legalDisp = self::legalForDisplay($client);
+            $mappedSite = $directSite !== '' ? $directSite : ($rawЮл !== '' ? ($siteByLegal[self::normKey($rawЮл)] ?? ($clients[$rawЮл]['site'] ?? '')) : '');
+            $legalDisp = self::legalForDisplay($rawЮл);
             $displayClient = self::siteLabel((string) $mappedSite, $legalDisp);
             $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
 
-            if (!isset($payByClient[$client])) {
-                $payByClient[$client] = ['total' => 0.0, 'lastDate' => $payDate];
+            if (!isset($payByClient[$clientKey])) {
+                $payByClient[$clientKey] = ['total' => 0.0, 'lastDate' => $payDate];
             }
-            $payByClient[$client]['total'] += $amount;
-            if ($payDate > $payByClient[$client]['lastDate']) {
-                $payByClient[$client]['lastDate'] = $payDate;
+            $payByClient[$clientKey]['total'] += $amount;
+            if ($payDate > $payByClient[$clientKey]['lastDate']) {
+                $payByClient[$clientKey]['lastDate'] = $payDate;
             }
         }
 

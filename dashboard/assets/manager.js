@@ -1031,9 +1031,22 @@
     const wp = d.weeklyPayments;
     const bars = wp?.bars || [];
     const drill = state.payWeekDrill;
+    const fromAllForWeek = bar => {
+      const ws = bar?.weekStart;
+      const we = bar?.weekEnd;
+      if (!ws || !we) return [];
+      const all = d.payments?.all || [];
+      return all.filter(p => {
+        const dt = String(p.date || '').slice(0, 10);
+        return dt >= ws && dt <= we;
+      });
+    };
     if (drill) {
       const bar = bars.find(b => String(b.weekEnd) === String(drill));
-      return Array.isArray(bar?.lines) ? bar.lines : [];
+      if (!bar) return [];
+      let lines = Array.isArray(bar.lines) ? bar.lines : [];
+      if (!lines.length) lines = fromAllForWeek(bar);
+      return lines;
     }
     return Array.isArray(d.payments?.all) ? d.payments.all : [];
   }
