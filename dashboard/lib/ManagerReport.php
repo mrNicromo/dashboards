@@ -400,6 +400,7 @@ final class ManagerReport
         usort($clients, static fn($a, $b) => $b['total'] <=> $a['total']);
         $allClients = array_values($clients);
         $top10      = array_slice($allClients, 0, 10);
+        $top5Dz     = array_slice($allClients, 0, 5);
         $top10Total = array_sum(array_column($top10, 'total'));
         $top10Pct   = $totalDz > 0 ? round($top10Total / $totalDz * 100, 1) : 0.0;
 
@@ -465,6 +466,7 @@ final class ManagerReport
             'totalDebt'       => $totalDz,
             'groupTotals'     => $grpTotals,
             'top10'           => $top10,
+            'top5Dz'          => $top5Dz,
             'top10Total'      => $top10Total,
             'top10Percent'    => $top10Pct,
             'mrr'             => $mrr,

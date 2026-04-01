@@ -561,16 +561,16 @@
 
   // ─── Фокус недели: критичные клиенты 91+ с MRR ───────────
   function renderFocusWeekSection(d, computed) {
-    // Клиенты в 91+ с ненулевым MRR — это приоритет #1 для работы
-    const focused = (d.allClients || [])
-      .filter(c => (c.groups?.['91+'] || 0) > 0 && (c.mrr || 0) > 0)
-      // ТОП-5 — по сумме долга (а не по дням просрочки)
-      .sort((a, b) => (b.total || 0) - (a.total || 0))
-      .slice(0, 5);
+    // Берем TOP-5 по сумме долга из API (бэкенд), fallback — локальный пересчет.
+    const focused = (Array.isArray(d.top5Dz) && d.top5Dz.length > 0)
+      ? d.top5Dz
+      : (d.allClients || [])
+          .sort((a, b) => (b.total || 0) - (a.total || 0))
+          .slice(0, 5);
 
     if (!focused.length) return '';
 
-    const totalCrit = focused.reduce((s, c) => s + (c.groups['91+'] || 0), 0);
+    const totalCrit = focused.reduce((s, c) => s + (c.total || 0), 0);
     const totalMrr  = focused.reduce((s, c) => s + (c.mrr || 0), 0);
 
     // Максимальная просрочка в днях по клиенту из allRows (формат dueDate: d/m/yyyy)
@@ -587,7 +587,7 @@
     }
 
     const rows = focused.map((c, i) => {
-      const debt91 = c.groups['91+'] || 0;
+      const debtTotal = c.total || 0;
       const days   = maxDays[c.client];
       const daysStr = days ? `${days} дн.` : '91+ дн.';
       const daysCls = days > 180 ? 'focus-crit' : days > 90 ? 'focus-warn' : '';
@@ -597,7 +597,7 @@
           <span class="focus-num">${i+1}</span>
           <span class="focus-name" title="${esc(c.client)}">${c.site ? esc(c.site.replace(/^https?:\/\//i,'').replace(/\/$/,'')) : esc(c.client)}</span>
           <span class="focus-mgr muted">${esc(c.manager || '—')}</span>
-          <span class="focus-debt">${fmtRub(debt91)}</span>
+          <span class="focus-debt">${fmtRub(debtTotal)}</span>
           <span class="focus-days ${daysCls}" title="Максимальная просрочка по счетам клиента">⏱ ${daysStr}</span>
         </div>`;
     }).join('');
@@ -606,10 +606,10 @@
       <div class="mgr-section focus-week-section">
         <div class="mgr-section-head">
           <div>
-            <h2 class="mgr-section-title">🔥 Фокус недели — 91+ с высоким MRR
-              <span class="mgr-help" title="Клиенты с долгом в корзине 91+ дней и ненулевым MRR (данные из Airtable). Сортировка по сумме долга 91+. Подсветка строк: долгая просрочка по счетам (>90 / >180 дней).">?</span>
+            <h2 class="mgr-section-title">🔥 Фокус недели — ТОП-5 по ДЗ
+              <span class="mgr-help" title="Клиенты с наибольшей суммой долга (данные из API). Сортировка по общей сумме ДЗ. Подсветка строк: долгая просрочка по счетам (>90 / >180 дней).">?</span>
             </h2>
-            <p class="mgr-section-hint">Требуют звонка или эскалации · Долг 91+: ${fmtRub(totalCrit)} · MRR под угрозой: ${fmtRub(totalMrr)}</p>
+            <p class="mgr-section-hint">Требуют звонка или эскалации · Общий долг TOP-5: ${fmtRub(totalCrit)} · MRR под угрозой: ${fmtRub(totalMrr)}</p>
           </div>
         </div>
         <div class="focus-list">${rows}</div>
