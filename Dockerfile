@@ -3,8 +3,11 @@ FROM php:8.2-apache
 WORKDIR /var/www/html
 
 # Минимально нужные расширения для текущего проекта
-RUN apt-get update && apt-get install -y libonig-dev && rm -rf /var/lib/apt/lists/*
-RUN docker-php-ext-install mbstring
+# libonig-dev — зависимость mbstring (oniguruma) в официальном образе php
+RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev \
+    && docker-php-ext-install mbstring \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Включаем mod_headers на случай будущих заголовков безопасности
 RUN a2dismod mpm_event mpm_worker; a2enmod mpm_prefork
