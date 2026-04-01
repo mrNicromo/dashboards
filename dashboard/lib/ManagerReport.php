@@ -78,6 +78,20 @@ final class ManagerReport
         return 'unknown-site-' . substr(sha1(self::normKey($legal)), 0, 8);
     }
 
+    /** @param array<string,mixed> $f */
+    private static function extractSiteFromFields(array $f): string
+    {
+        $siteRaw = $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? $f['Accounts'] ?? null;
+        if (is_string($siteRaw) && $siteRaw !== '') {
+            return trim(explode(',', $siteRaw)[0]);
+        }
+        if (is_array($siteRaw) && !empty($siteRaw)) {
+            $first = $siteRaw[0];
+            return is_string($first) ? trim($first) : (string)($first['name'] ?? '');
+        }
+        return '';
+    }
+
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
@@ -331,14 +345,7 @@ final class ManagerReport
             }
 
             // Сайт клиента: лукап-поле «Accounts (Связи) (from Связи)»
-            $siteRaw = $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
-            $site = '';
-            if (is_string($siteRaw) && $siteRaw !== '') {
-                $site = trim(explode(',', $siteRaw)[0]);
-            } elseif (is_array($siteRaw) && !empty($siteRaw)) {
-                $first = $siteRaw[0];
-                $site = is_string($first) ? trim($first) : (string)($first['name'] ?? '');
-            }
+            $site = self::extractSiteFromFields($f);
             $displayClient = self::siteLabel($site, $юл);
             if ($site !== '') {
                 $siteByLegal[self::normKey($юл)] = $site;
@@ -441,7 +448,8 @@ final class ManagerReport
                 continue;
             }
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
-            $mappedSite = $siteByLegal[self::normKey($client)] ?? ($clients[$client]['site'] ?? '');
+            $directSite = self::extractSiteFromFields($f);
+            $mappedSite = $directSite !== '' ? $directSite : ($siteByLegal[self::normKey($client)] ?? ($clients[$client]['site'] ?? ''));
             $displayClient = self::siteLabel((string)$mappedSite, $client);
             $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
 
