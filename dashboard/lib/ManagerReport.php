@@ -64,6 +64,11 @@ final class ManagerReport
         return (float) ($s ?: '0');
     }
 
+    private static function normKey(string $v): string
+    {
+        return mb_strtolower(trim($v));
+    }
+
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
@@ -290,6 +295,8 @@ final class ManagerReport
         $totalDz   = 0.0;
         $allRows   = [];          // детальные строки для фронтенда
 
+        $siteByLegal = []; // нормализованное "ЮЛ клиента" -> site
+
         foreach ($debtRecs as $r) {
             $f      = $r['fields'] ?? [];
             $grpRaw = (string) ($f['Группа просрочки'] ?? '');
@@ -324,6 +331,9 @@ final class ManagerReport
                 $site = is_string($first) ? trim($first) : (string)($first['name'] ?? '');
             }
             $displayClient = $site !== '' ? $site : $client;
+            if ($site !== '') {
+                $siteByLegal[self::normKey($юл)] = $site;
+            }
 
             $amount = self::parseAmount($f['Фактическая задолженность'] ?? 0);
             $mgr    = '';
@@ -422,7 +432,7 @@ final class ManagerReport
                 continue;
             }
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
-            $displayClient = $clients[$client]['site'] ?? ($clients[$client]['client'] ?? $client);
+            $displayClient = $siteByLegal[self::normKey($client)] ?? ($clients[$client]['site'] ?? ($clients[$client]['client'] ?? $client));
             $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
 
             if (!isset($payByClient[$client])) {
@@ -444,7 +454,7 @@ final class ManagerReport
             $юл = $c['юл'] ?? $c['client'];
             if (isset($payByClient[$юл])) {
                 $fromTop10[] = [
-                    'client' => $c['site'] ?: $c['client'],
+                    'client' => ($c['site'] ?: ($siteByLegal[self::normKey((string)$юл)] ?? $c['client'])),
                     'amount' => $payByClient[$юл]['total'],
                     'date'   => $payByClient[$юл]['lastDate'],
                 ];
