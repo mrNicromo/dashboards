@@ -155,11 +155,11 @@
         ${renderAlertBanner(computed, d)}
         ${renderKpiCards(computed, d)}
         ${renderFocusWeekSection(d, computed)}
+        ${renderFocus91MrrSection(d)}
         ${renderTop10Section(computed)}
         ${renderChampionsSection(d, computed)}
         ${renderManagerTableSection(d)}
         ${renderGaugeSection(computed.totalDebt, d.mrr)}
-        ${renderFocus91MrrSection(d)}
         ${renderAgingTransitionSection(d)}
         ${renderWeeklyDzChart(d)}
         ${renderPaymentsSection(d)}
@@ -620,7 +620,7 @@
   // ─── Доп. фокус: 91+ с высоким MRR (старый блок) ──────────
   function renderFocus91MrrSection(d) {
     const focused = (d.allClients || [])
-      .filter(c => (c.groups?.['91+'] || 0) > 0 && (c.mrr || 0) > 0)
+      .filter(c => (c.groups?.['91+'] || 0) > 0)
       .sort((a, b) => (b.groups?.['91+'] || 0) - (a.groups?.['91+'] || 0))
       .slice(0, 5);
 
