@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {"display": "markformelle.uz", "url": "https://markformelle.uz/", "all": ["markformelle", "uz"]},
+    {"display": "markformelle.kz", "url": "https://markformelle.kz/", "all": ["markformelle", "kz"]},
+    {"display": "markformelle.ru", "url": "https://markformelle.ru/", "any": ["markformelle.ru", "markformelle rus", "маркформель"]},
+    {"display": "markformelle.by", "url": "https://markformelle.by/", "any": ["markformelle.by"]},
+
+    {"display": "catalog.onliner.by", "url": "https://catalog.onliner.by/", "any": ["емаркет", "e-market", "onliner", "catalog.onliner"]},
+    {"display": "честныйзнак.рф", "url": "https://честныйзнак.рф/", "any": ["честныйзнак", "chestnyznak", "chestny znak"]},
+    {"display": "vsngroup.ru", "url": "https://www.vsngroup.ru/", "any": ["vsngroup", "vsn group"]},
+    {"display": "3logic.ru", "url": "https://3logic.ru", "any": ["3logic", "3логик"]},
+    {"display": "togas.com", "url": "https://www.togas.com", "any": ["togas", "тогас"]},
+    {"display": "electronmotors.ru", "url": "https://electronmotors.ru/", "any": ["electronmotors", "электронмоторс"]},
+    {"display": "pedigree.ru", "url": "https://pedigree.ru", "any": ["pedigree", "педигри"]},
+    {"display": "минидино", "url": "https://xn--d1ahabqhdi.xn--p1ai", "any": ["минидино", "minidino"]},
+    {"display": "kamaz.market", "url": "https://kamaz.market/", "any": ["kamaz.market"]},
+    {"display": "moto-scuter.ru", "url": "https://www.moto-scuter.ru/", "any": ["moto-scuter", "мото-скутер"]},
+    {"display": "pechiteplov.ru", "url": "https://pechiteplov.ru/", "any": ["pechiteplov", "печитеплов"]},
+    {"display": "generica.su", "url": "https://generica.su", "any": ["generica", "генерика"]},
+    {"display": "oni-system.com", "url": "https://oni-system.com", "any": ["oni-system", "oni system"]},
+    {"display": "happy-klinika.ru", "url": "https://happy-klinika.ru/", "any": ["happy-klinika", "happy klinika", "хэппи клиника"]},
+
+    {"display": "markformelle", "url": "https://markformelle.ru/", "any": ["markformelle", "маркформель"]}
+  ]
+}

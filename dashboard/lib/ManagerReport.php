@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/LegalSiteCatalog.php';
+
 /**
  * Дашборд руководителя — загрузка и обработка данных из Airtable.
  *
@@ -94,6 +96,31 @@ final class ManagerReport
         return trim($legal) !== '' ? trim($legal) : 'Без названия';
     }
 
+    /**
+     * Подпись и ссылка для оплат: сайт из Airtable → каталог ЮЛ→сайт → без «ООО» в конце.
+     *
+     * @return array{client: string, clientUrl: string|null}
+     */
+    private static function paymentDisplayLabel(string $rawЮл, string $mappedSite): array
+    {
+        $legalDisp = self::legalForDisplay($rawЮл);
+        $base      = self::siteLabel((string) $mappedSite, $legalDisp);
+        if (trim($base) === '') {
+            $base = 'Без названия';
+        }
+        $r = LegalSiteCatalog::resolve($rawЮл, (string) $mappedSite, $base);
+        $display = $r['display'];
+        $url     = $r['url'];
+        if ($url === '' && ($display === $base || $display === 'Без названия')) {
+            $display = LegalSiteCatalog::stripLegalFormSuffix($base);
+        }
+
+        return [
+            'client'    => $display,
+            'clientUrl' => $url !== '' ? $url : null,
+        ];
+    }
+
     /** @param array<string,mixed> $f */
     private static function siteFromRaw(mixed $siteRaw): string
     {
@@ -152,14 +179,14 @@ final class ManagerReport
                     continue;
                 }
                 $rawЮл       = trim((string) ($f['ЮЛ клиента'] ?? ''));
-                $legalDisp   = self::legalForDisplay($rawЮл);
                 $directSite  = self::extractSiteFromFields($f, $siteFieldName);
                 $mappedSite  = $directSite !== '' ? $directSite : ($legalSiteMap[self::normKey($rawЮл)] ?? '');
-                $displayClient = self::siteLabel((string) $mappedSite, $legalDisp);
+                $pd          = self::paymentDisplayLabel($rawЮл, (string) $mappedSite);
                 $lines[]     = [
-                    'date'   => (string) ($e['date'] ?? ''),
-                    'amount' => round((float) ($e['amount'] ?? 0), 2),
-                    'client' => $displayClient,
+                    'date'      => (string) ($e['date'] ?? ''),
+                    'amount'    => round((float) ($e['amount'] ?? 0), 2),
+                    'client'    => $pd['client'],
+                    'clientUrl' => $pd['clientUrl'],
                 ];
             }
             usort($lines, static fn($a, $b) => [$b['date'], $b['amount']] <=> [$a['date'], $a['amount']]);
@@ -585,9 +612,13 @@ final class ManagerReport
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
             $directSite = self::extractSiteFromFields($f, $siteFieldName);
             $mappedSite = $directSite !== '' ? $directSite : ($rawЮл !== '' ? ($siteByLegal[self::normKey($rawЮл)] ?? ($clients[$rawЮл]['site'] ?? '')) : '');
-            $legalDisp = self::legalForDisplay($rawЮл);
-            $displayClient = self::siteLabel((string) $mappedSite, $legalDisp);
-            $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
+            $pd            = self::paymentDisplayLabel($rawЮл, (string) $mappedSite);
+            $paidEntries[] = [
+                'client'    => $pd['client'],
+                'clientUrl' => $pd['clientUrl'],
+                'amount'    => $amount,
+                'date'      => $payDate,
+            ];
 
             if (!isset($payByClient[$clientKey])) {
                 $payByClient[$clientKey] = ['total' => 0.0, 'lastDate' => $payDate];
@@ -609,10 +640,13 @@ final class ManagerReport
         foreach ($top10 as $c) {
             $юл = $c['юл'] ?? $c['client'];
             if (isset($payByClient[$юл])) {
+                $mappedTop = (string) ($c['site'] ?: ($siteByLegal[self::normKey((string) $юл)] ?? ''));
+                $pdTop     = self::paymentDisplayLabel((string) $юл, $mappedTop);
                 $fromTop10[] = [
-                    'client' => self::siteLabel((string)($c['site'] ?: ($siteByLegal[self::normKey((string)$юл)] ?? '')), (string)$юл),
-                    'amount' => $payByClient[$юл]['total'],
-                    'date'   => $payByClient[$юл]['lastDate'],
+                    'client'    => $pdTop['client'],
+                    'clientUrl' => $pdTop['clientUrl'],
+                    'amount'    => $payByClient[$юл]['total'],
+                    'date'      => $payByClient[$юл]['lastDate'],
                 ];
             }
         }

@@ -48,7 +48,7 @@ if (is_readable($factCache)) {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Анализ дебиторской задолженности</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/manager.css?v=4">
+  <link rel="stylesheet" href="assets/manager.css?v=5">
   <script>
     // Применяем тему до рендера — без мигания
     (function(){

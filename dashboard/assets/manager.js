@@ -51,6 +51,15 @@
     const href = site.startsWith('http') ? site : 'https://' + site;
     return `<a class="site-badge" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(site)}">${esc(display)}</a>`;
   };
+  /** Клиент в таблицах оплат: ссылка из API или жирный текст */
+  const payClientHtml = r => {
+    const name = r.client || '';
+    const u = r.clientUrl;
+    if (u && /^https?:\/\//i.test(String(u))) {
+      return `<a class="wk-pay-client-link" href="${esc(u)}" target="_blank" rel="noopener">${esc(name)}</a>`;
+    }
+    return `<strong>${esc(name)}</strong>`;
+  };
 
   // ─── Состояние ────────────────────────────────────────────
   const state = {
@@ -923,7 +932,7 @@
         <tbody>${rows.map((r, i) => `
           <tr>
             <td class="idx">${i + 1}</td>
-            <td><strong>${esc(r.client)}</strong></td>
+            <td>${payClientHtml(r)}</td>
             <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
             <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
           </tr>`).join('')}
@@ -1027,6 +1036,17 @@
       </div>`;
   }
 
+  function filterPayLinesToWeekRange(lines, bar) {
+    if (!bar || !Array.isArray(lines)) return [];
+    const ws = String(bar.weekStart || '');
+    const we = String(bar.weekEnd || '');
+    if (!ws || !we) return lines;
+    return lines.filter(p => {
+      const dt = String(p.date || '').slice(0, 10);
+      return dt >= ws && dt <= we;
+    });
+  }
+
   function getPayLinesForTable(d) {
     const wp = d.weeklyPayments;
     const bars = wp?.bars || [];
@@ -1044,9 +1064,9 @@
     if (drill) {
       const bar = bars.find(b => String(b.weekEnd) === String(drill));
       if (!bar) return [];
-      let lines = Array.isArray(bar.lines) ? bar.lines : [];
+      let lines = Array.isArray(bar.lines) ? [...bar.lines] : [];
       if (!lines.length) lines = fromAllForWeek(bar);
-      return lines;
+      return filterPayLinesToWeekRange(lines, bar);
     }
     return Array.isArray(d.payments?.all) ? d.payments.all : [];
   }
@@ -1154,7 +1174,7 @@
                 <tr>
                   <td class="idx">${i + 1}</td>
                   <td class="wk-pay-dt">${esc(fmtDateWd(r.date || ''))}</td>
-                  <td><span class="wk-pay-client">${esc(r.client)}</span></td>
+                  <td>${payClientHtml(r)}</td>
                   <td class="num wk-pay-amt">${fmtRub(r.amount)}</td>
                 </tr>
               `).join('') : '<tr><td colspan="4" class="empty-state">Нет оплат за период</td></tr>'}

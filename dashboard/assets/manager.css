@@ -1042,6 +1042,13 @@
 th.num .wk-pay-sort { text-align: right; width: 100%; }
 .wk-pay-dt { white-space: nowrap; color: var(--muted); font-size: 0.8rem; }
 .wk-pay-client { font-weight: 600; }
+.wk-pay-client-link {
+  color: var(--accent, #6ea8fe);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent, #6ea8fe) 55%, transparent);
+}
+.wk-pay-client-link:hover { border-bottom-style: solid; }
 .wk-pay-amt { color: var(--ok); font-weight: 700; }
 .wk-pay-top10-note { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .wk-pay-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
