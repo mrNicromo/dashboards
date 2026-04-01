@@ -159,6 +159,7 @@
         ${renderChampionsSection(d, computed)}
         ${renderManagerTableSection(d)}
         ${renderGaugeSection(computed.totalDebt, d.mrr)}
+        ${renderFocus91MrrSection(d)}
         ${renderAgingTransitionSection(d)}
         ${renderWeeklyDzChart(d)}
         ${renderPaymentsSection(d)}
@@ -610,6 +611,40 @@
               <span class="mgr-help" title="Клиенты с наибольшей суммой долга (данные из API). Сортировка по общей сумме ДЗ. Подсветка строк: долгая просрочка по счетам (>90 / >180 дней).">?</span>
             </h2>
             <p class="mgr-section-hint">Требуют звонка или эскалации · Общий долг TOP-5: ${fmtRub(totalCrit)} · MRR под угрозой: ${fmtRub(totalMrr)}</p>
+          </div>
+        </div>
+        <div class="focus-list">${rows}</div>
+      </div>`;
+  }
+
+  // ─── Доп. фокус: 91+ с высоким MRR (старый блок) ──────────
+  function renderFocus91MrrSection(d) {
+    const focused = (d.allClients || [])
+      .filter(c => (c.groups?.['91+'] || 0) > 0 && (c.mrr || 0) > 0)
+      .sort((a, b) => (b.groups?.['91+'] || 0) - (a.groups?.['91+'] || 0))
+      .slice(0, 5);
+
+    if (!focused.length) return '';
+
+    const totalCrit91 = focused.reduce((s, c) => s + (c.groups?.['91+'] || 0), 0);
+    const totalMrr    = focused.reduce((s, c) => s + (c.mrr || 0), 0);
+
+    const rows = focused.map((c, i) => `
+      <div class="focus-row">
+        <span class="focus-num">${i + 1}</span>
+        <span class="focus-name" title="${esc(c.client)}">${c.site ? esc(c.site.replace(/^https?:\/\//i,'').replace(/\/$/,'')) : esc(c.client)}</span>
+        <span class="focus-mgr muted">${esc(c.manager || '—')}</span>
+        <span class="focus-debt">${fmtRub(c.groups?.['91+'] || 0)}</span>
+        <span class="focus-days" title="Долг в корзине 91+">91+ дн.</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="mgr-section focus-week-section">
+        <div class="mgr-section-head">
+          <div>
+            <h2 class="mgr-section-title">🔥 Фокус 91+ с высоким MRR</h2>
+            <p class="mgr-section-hint">Критичный долг 91+: ${fmtRub(totalCrit91)} · MRR под риском: ${fmtRub(totalMrr)}</p>
           </div>
         </div>
         <div class="focus-list">${rows}</div>
