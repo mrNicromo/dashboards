@@ -30,6 +30,27 @@ function csrf_token(): string
 }
 
 /**
+ * Railway/PHP могут прокидывать env по-разному (getenv, $_ENV, $_SERVER).
+ * Возвращаем первое непустое значение.
+ */
+function dashboard_env(string $name): string
+{
+    $v = getenv($name);
+    if (is_string($v) && trim($v) !== '') {
+        return trim($v);
+    }
+    $v = $_ENV[$name] ?? null;
+    if (is_string($v) && trim($v) !== '') {
+        return trim($v);
+    }
+    $v = $_SERVER[$name] ?? null;
+    if (is_string($v) && trim($v) !== '') {
+        return trim($v);
+    }
+    return '';
+}
+
+/**
  * @return array{airtable_pat: string, airtable_base_id: string, airtable_dz_table_id: string, airtable_dz_view_id: string, airtable_cs_table_id: string, airtable_churn_table_id: string, airtable_cs_view_id: string, airtable_churn_view_id: string, airtable_extra_source_table_ids: string, airtable_paid_view_id: string, auth_enabled: string|int|bool, auth_username: string, auth_password: string, auth_password_hash: string}
  */
 function dashboard_config(): array
@@ -56,23 +77,23 @@ function dashboard_config(): array
         $fromFile = [];
     }
     $merged = array_merge($defaults, $fromFile);
-    $pat = getenv('AIRTABLE_PAT') ?: ($merged['airtable_pat'] ?? '');
-    $base = getenv('AIRTABLE_BASE_ID') ?: ($merged['airtable_base_id'] ?? $defaults['airtable_base_id']);
-    $dzTable = getenv('AIRTABLE_DZ_TABLE_ID') ?: ($merged['airtable_dz_table_id'] ?? '');
-    $dzView = getenv('AIRTABLE_DZ_VIEW_ID') ?: ($merged['airtable_dz_view_id'] ?? '');
-    $csTable = getenv('AIRTABLE_CS_TABLE_ID') ?: ($merged['airtable_cs_table_id'] ?? '');
-    $churnTable = getenv('AIRTABLE_CHURN_TABLE_ID') ?: ($merged['airtable_churn_table_id'] ?? '');
-    $csView = getenv('AIRTABLE_CS_VIEW_ID') ?: ($merged['airtable_cs_view_id'] ?? '');
-    $churnView = getenv('AIRTABLE_CHURN_VIEW_ID') ?: ($merged['airtable_churn_view_id'] ?? '');
-    $extraSource = getenv('AIRTABLE_EXTRA_SOURCE_TABLE_IDS') ?: ($merged['airtable_extra_source_table_ids'] ?? '');
-    $paidView = getenv('AIRTABLE_PAID_VIEW_ID') ?: ($merged['airtable_paid_view_id'] ?? '');
-    $authEnabled = getenv('DASHBOARD_AUTH_ENABLED');
-    if ($authEnabled === false || $authEnabled === '') {
+    $pat = dashboard_env('AIRTABLE_PAT') ?: ($merged['airtable_pat'] ?? '');
+    $base = dashboard_env('AIRTABLE_BASE_ID') ?: ($merged['airtable_base_id'] ?? $defaults['airtable_base_id']);
+    $dzTable = dashboard_env('AIRTABLE_DZ_TABLE_ID') ?: ($merged['airtable_dz_table_id'] ?? '');
+    $dzView = dashboard_env('AIRTABLE_DZ_VIEW_ID') ?: ($merged['airtable_dz_view_id'] ?? '');
+    $csTable = dashboard_env('AIRTABLE_CS_TABLE_ID') ?: ($merged['airtable_cs_table_id'] ?? '');
+    $churnTable = dashboard_env('AIRTABLE_CHURN_TABLE_ID') ?: ($merged['airtable_churn_table_id'] ?? '');
+    $csView = dashboard_env('AIRTABLE_CS_VIEW_ID') ?: ($merged['airtable_cs_view_id'] ?? '');
+    $churnView = dashboard_env('AIRTABLE_CHURN_VIEW_ID') ?: ($merged['airtable_churn_view_id'] ?? '');
+    $extraSource = dashboard_env('AIRTABLE_EXTRA_SOURCE_TABLE_IDS') ?: ($merged['airtable_extra_source_table_ids'] ?? '');
+    $paidView = dashboard_env('AIRTABLE_PAID_VIEW_ID') ?: ($merged['airtable_paid_view_id'] ?? '');
+    $authEnabled = dashboard_env('DASHBOARD_AUTH_ENABLED');
+    if ($authEnabled === '') {
         $authEnabled = $merged['auth_enabled'] ?? '';
     }
-    $authUser = getenv('DASHBOARD_AUTH_USERNAME') ?: ($merged['auth_username'] ?? '');
-    $authPass = getenv('DASHBOARD_AUTH_PASSWORD') ?: ($merged['auth_password'] ?? '');
-    $authPassHash = getenv('DASHBOARD_AUTH_PASSWORD_HASH') ?: ($merged['auth_password_hash'] ?? '');
+    $authUser = dashboard_env('DASHBOARD_AUTH_USERNAME') ?: ($merged['auth_username'] ?? '');
+    $authPass = dashboard_env('DASHBOARD_AUTH_PASSWORD') ?: ($merged['auth_password'] ?? '');
+    $authPassHash = dashboard_env('DASHBOARD_AUTH_PASSWORD_HASH') ?: ($merged['auth_password_hash'] ?? '');
 
     return [
         'airtable_pat' => trim((string) $pat),
