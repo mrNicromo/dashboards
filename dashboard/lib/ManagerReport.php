@@ -75,13 +75,13 @@ final class ManagerReport
         if ($s !== '') {
             return $s;
         }
-        return 'unknown-site-' . substr(sha1(self::normKey($legal)), 0, 8);
+        return trim($legal) !== '' ? trim($legal) : 'Без названия';
     }
 
     /** @param array<string,mixed> $f */
     private static function extractSiteFromFields(array $f): string
     {
-        $siteRaw = $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? $f['Accounts'] ?? null;
+        $siteRaw = $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
         if (is_string($siteRaw) && $siteRaw !== '') {
             return trim(explode(',', $siteRaw)[0]);
         }
