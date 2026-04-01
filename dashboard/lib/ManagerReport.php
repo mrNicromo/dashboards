@@ -323,6 +323,7 @@ final class ManagerReport
                 $first = $siteRaw[0];
                 $site = is_string($first) ? trim($first) : (string)($first['name'] ?? '');
             }
+            $displayClient = $site !== '' ? $site : $client;
 
             $amount = self::parseAmount($f['Фактическая задолженность'] ?? 0);
             $mgr    = '';
@@ -337,17 +338,17 @@ final class ManagerReport
 
             if (!isset($clients[$юл])) {
                 $clients[$юл] = [
-                    'client'  => $client,   // отображаемое имя (Accounts или ЮЛ)
+                    'client'  => $displayClient,   // показываем сайт, если он есть
                     'юл'      => $юл,       // внутренний ключ для матчинга оплат
                     'site'    => $site,
                     'total'   => 0.0,
                     'groups'  => ['16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0],
                     'manager' => $mgr,
-                    'mrr'     => $lookupMrr($client, $юл, $site),
+                    'mrr'     => $lookupMrr($displayClient, $юл, $site),
                 ];
             } elseif ($clients[$юл]['mrr'] == 0.0 && $site !== '') {
                 // Если MRR ещё не найден, пробуем по сайту при следующей встрече записи
-                $clients[$юл]['mrr'] = $lookupMrr($client, $юл, $site);
+                $clients[$юл]['mrr'] = $lookupMrr($displayClient, $юл, $site);
             }
             $clients[$юл]['total']           += $amount;
             $clients[$юл]['groups'][$grpKey] += $amount;
@@ -358,7 +359,7 @@ final class ManagerReport
             $totalDz                         += $amount;
 
             $allRows[] = [
-                'client'    => $client,
+                'client'    => $displayClient,
                 'site'      => $site,
                 'amount'    => $amount,
                 'group'     => $grpKey,
@@ -421,7 +422,8 @@ final class ManagerReport
                 continue;
             }
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
-            $paidEntries[] = ['client' => $client, 'amount' => $amount, 'date' => $payDate];
+            $displayClient = $clients[$client]['site'] ?? ($clients[$client]['client'] ?? $client);
+            $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
 
             if (!isset($payByClient[$client])) {
                 $payByClient[$client] = ['total' => 0.0, 'lastDate' => $payDate];
@@ -442,7 +444,7 @@ final class ManagerReport
             $юл = $c['юл'] ?? $c['client'];
             if (isset($payByClient[$юл])) {
                 $fromTop10[] = [
-                    'client' => $c['client'],
+                    'client' => $c['site'] ?: $c['client'],
                     'amount' => $payByClient[$юл]['total'],
                     'date'   => $payByClient[$юл]['lastDate'],
                 ];

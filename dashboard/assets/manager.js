@@ -742,17 +742,6 @@
   function renderChampionsSection(d, computed) {
     const mrr = d.mrr || 0;
 
-    // managerMrr: предпочитаем данные с бэкенда (d.managerMrr),
-    // fallback — считаем из allClients (MRR клиентов в долге)
-    const managerMrr = d.managerMrr || (() => {
-      const m = {};
-      for (const c of (d.allClients || [])) {
-        const mgr = c.manager || 'Не указан';
-        m[mgr] = (m[mgr] || 0) + (c.mrr || 0);
-      }
-      return m;
-    })();
-
     // Берём менеджеров, пересчитываем по активным группам, сортируем
     const mgrs = (d.byManager || [])
       .map(m => {
@@ -766,17 +755,12 @@
     if (!mgrs.length) return '';
 
     const maxTotal   = mgrs[0].filteredTotal;
-    const totalDebt  = mgrs.reduce((s, m) => s + m.filteredTotal, 0);
 
     const rows = mgrs.map((m, i) => {
       const barW    = maxTotal > 0 ? (m.filteredTotal / maxTotal * 100).toFixed(1) : 0;
       const pctMrr  = mrr > 0 ? (m.filteredTotal / mrr * 100).toFixed(1) : null;
-      const pctAll  = totalDebt > 0 ? (m.filteredTotal / totalDebt * 100).toFixed(0) : 0;
-      const ownMrr  = managerMrr[m.manager] || 0;
-      const pctOwn  = ownMrr > 0 ? (m.filteredTotal / ownMrr * 100).toFixed(1) : null;
       const medal   = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
       const mrrCls  = pctMrr === null ? '' : +pctMrr > 15 ? 'champ-pct-danger' : +pctMrr > 8 ? 'champ-pct-warn' : 'champ-pct-ok';
-      const ownCls  = pctOwn === null ? 'muted' : +pctOwn > 25 ? 'champ-pct-danger' : +pctOwn > 12 ? 'champ-pct-warn' : 'champ-pct-ok';
 
       return `
         <tr class="champ-row">
@@ -788,8 +772,6 @@
             </div>
           </td>
           <td class="num champ-total">${fmtRub(m.filteredTotal)}</td>
-          <td class="num champ-share muted">${pctAll}% от ПДЗ</td>
-          <td class="num ${ownCls}" title="ДЗ / портфель MRR менеджера (${fmtRub(ownMrr)})">${pctOwn !== null ? pctOwn + '% портфеля' : '—'}</td>
           <td class="num ${mrrCls}">${pctMrr !== null ? pctMrr + '% MRR' : '—'}</td>
         </tr>`;
     });
@@ -799,7 +781,7 @@
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">🏆 Чемпионы по ПДЗ
-              <span class="mgr-help" title="Рейтинг менеджеров по сумме дебиторской задолженности.&#10;% от общего ПДЗ — доля менеджера в общей сумме долгов.&#10;% портфеля — ДЗ / MRR его клиентов (здоровье портфеля). Норма ≤12%, критично >25%.&#10;% от MRR — ДЗ / общая выручка компании. Норма ≤8%.">?</span>
+              <span class="mgr-help" title="Рейтинг менеджеров по сумме дебиторской задолженности. Показан объём ДЗ и доля к общему MRR компании.">?</span>
             </h2>
             <p class="mgr-section-hint">Кто держит наибольший объём просрочки · ${mgrs.length} менеджеров</p>
           </div>
@@ -811,8 +793,6 @@
               <th>Менеджер</th>
               <th style="min-width:160px">Доля в портфеле</th>
               <th style="text-align:right">Сумма ДЗ</th>
-              <th style="text-align:right">% от общего ПДЗ</th>
-              <th style="text-align:right">% портфеля</th>
               <th style="text-align:right">% от MRR</th>
             </tr></thead>
             <tbody>${rows.join('')}</tbody>
@@ -1079,7 +1059,13 @@
         </div>
         <div class="wkly-legend">
           <span class="wkly-legend-item wkly-legend-pay">Оплачено за неделю</span>
-          <span style="font-size:0.78rem;color:var(--muted)">Текущая неделя: <strong style="color:var(--ok)">${fmtRub(wp.currentWeekTotal)}</strong></span>
+          <span class="wk-current-week" style="font-size:0.78rem;color:var(--muted)">
+            Текущая неделя: <strong style="color:var(--ok)">${fmtRub(wp.currentWeekTotal)}</strong>
+            <span class="wk-current-pop">
+              <span class="wk-current-pop-title">Крупные оплаты недели</span>
+              ${(d.payments?.top5 || []).slice(0, 5).map(p => `<span class="wk-current-pop-row">${esc(p.client)} — ${fmtRub(p.amount)}</span>`).join('') || '<span class="wk-current-pop-row">Нет оплат</span>'}
+            </span>
+          </span>
         </div>
         <div class="wkly-chart">
           ${cols.join('')}

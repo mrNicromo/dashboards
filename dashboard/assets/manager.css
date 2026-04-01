@@ -978,6 +978,24 @@
 .wkly-legend-total::before  { background: var(--chart-total); }
 .wkly-legend-overdue::before{ background: var(--chart-over); }
 .wkly-legend-pay::before    { background: var(--chart-pay); }
+.wk-current-week { position: relative; cursor: help; }
+.wk-current-pop {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 120%;
+  min-width: 260px;
+  max-width: 360px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  z-index: 20;
+}
+.wk-current-week:hover .wk-current-pop { display: block; }
+.wk-current-pop-title { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; }
+.wk-current-pop-row { display: block; font-size: 0.76rem; color: var(--text); line-height: 1.4; }
 
 /* Дельта нед/нед */
 .wkly-delta {
