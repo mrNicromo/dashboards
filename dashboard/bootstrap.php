@@ -15,7 +15,10 @@ if (empty($_SESSION['csrf_token'])) {
  */
 function csrf_check(): void
 {
-    $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $sent = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if ($sent === '') {
+        $sent = (string)($_POST['csrf_token'] ?? '');
+    }
     if (!hash_equals($_SESSION['csrf_token'] ?? '', $sent)) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'CSRF token mismatch']);
