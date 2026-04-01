@@ -564,7 +564,8 @@
     // Клиенты в 91+ с ненулевым MRR — это приоритет #1 для работы
     const focused = (d.allClients || [])
       .filter(c => (c.groups?.['91+'] || 0) > 0 && (c.mrr || 0) > 0)
-      .sort((a, b) => (b.groups['91+'] || 0) - (a.groups['91+'] || 0))
+      // ТОП-5 — по сумме долга (а не по дням просрочки)
+      .sort((a, b) => (b.total || 0) - (a.total || 0))
       .slice(0, 5);
 
     if (!focused.length) return '';
