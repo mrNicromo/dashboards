@@ -182,4 +182,39 @@ final class Airtable
         }
         return $out;
     }
+
+    /** @var array<string, array<string, string>> */
+    private static array $fieldIdToNameCache = [];
+
+    /**
+     * Имя поля по field id (из URL вида …/fldXXXX/…). Нужен scope schema.bases:read.
+     *
+     * @return non-empty-string|null
+     */
+    public static function getFieldNameById(string $baseId, string $tableId, string $fieldId, string $token): ?string
+    {
+        $ck = $baseId . '|' . $tableId;
+        if (!isset(self::$fieldIdToNameCache[$ck])) {
+            $url     = 'https://api.airtable.com/v0/meta/bases/' . rawurlencode($baseId) . '/tables';
+            $body    = self::httpGet($url, $token);
+            $decoded = json_decode($body, true);
+            $map     = [];
+            if (is_array($decoded)) {
+                foreach ($decoded['tables'] ?? [] as $t) {
+                    if (!is_array($t) || ($t['id'] ?? '') !== $tableId) {
+                        continue;
+                    }
+                    foreach ($t['fields'] ?? [] as $fld) {
+                        if (is_array($fld) && isset($fld['id'], $fld['name'])) {
+                            $map[(string) $fld['id']] = (string) $fld['name'];
+                        }
+                    }
+                    break;
+                }
+            }
+            self::$fieldIdToNameCache[$ck] = $map;
+        }
+        $name = self::$fieldIdToNameCache[$ck][$fieldId] ?? null;
+        return ($name !== null && $name !== '') ? $name : null;
+    }
 }

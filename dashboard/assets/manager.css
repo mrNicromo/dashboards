@@ -986,6 +986,73 @@
 .wk-pay-expand-kpis strong { color: var(--text); }
 .wk-pay-expand-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 700px) { .wk-pay-expand-cols { grid-template-columns: 1fr; } }
+
+.wk-pay-chart-hint,
+.wk-pay-drill-hint {
+  font-size: 0.78rem;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wk-pay-drill-range { color: var(--text); }
+.wk-pay-back-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent, #6ea8fe);
+  cursor: pointer;
+}
+.wk-pay-back-btn:hover { border-color: var(--muted); }
+
+.wkly-col[data-pay-week] { cursor: pointer; }
+.wkly-col[data-pay-week]:hover .wkly-bar-pay { filter: brightness(1.12); }
+.wkly-col-active .wkly-bar-pay {
+  box-shadow: 0 0 0 2px var(--ok);
+  border-radius: 2px;
+}
+.wkly-col-day .wkly-label { font-size: 0.68rem; line-height: 1.2; }
+.wkly-wd {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.wk-pay-full-table { overflow-x: auto; max-height: min(55vh, 520px); overflow-y: auto; }
+.mgr-table-pay-all { width: 100%; font-size: 0.82rem; }
+.mgr-table-pay-all thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.mgr-table-pay-all tbody tr:nth-child(even) { background: rgba(127,127,127,0.06); }
+.wk-pay-sort {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline dotted transparent;
+}
+.wk-pay-sort:hover { text-decoration-color: var(--muted); }
+th.num .wk-pay-sort { text-align: right; width: 100%; }
+.wk-pay-dt { white-space: nowrap; color: var(--muted); font-size: 0.8rem; }
+.wk-pay-client { font-weight: 600; }
+.wk-pay-amt { color: var(--ok); font-weight: 700; }
+.wk-pay-top10-note { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.wk-pay-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.wk-pay-chip {
+  font-size: 0.76rem;
+  padding: 4px 8px;
+  background: var(--elevated);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
 .wk-current-week { position: relative; cursor: help; }
 .wk-current-pop {
   display: none;

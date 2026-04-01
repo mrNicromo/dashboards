@@ -22,6 +22,16 @@
     const p = String(s).slice(0, 10).split('-');
     return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : s;
   };
+  const weekdayRu = iso => {
+    const p = String(iso || '').slice(0, 10).split('-');
+    if (p.length !== 3) return '';
+    const dt = new Date(+p[0], +p[1] - 1, +p[2]);
+    return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][dt.getDay()] || '';
+  };
+  const fmtDateWd = s => {
+    const w = weekdayRu(s);
+    return w ? `${fmtDate(s)} · ${w}` : fmtDate(s);
+  };
   const esc = s => String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const fullMgr = name => {
@@ -62,6 +72,9 @@
     modalClient:    null,
     detailGrouped:  false,
     weeklyPayExpanded: false,
+    /** null — недельные столбцы; weekEnd (Y-m-d) — разворот графика по дням этой недели */
+    payWeekDrill:      null,
+    payTableSort:      { col: 'date', dir: 'desc' },
   };
 
   const saveExcluded = () => localStorage.setItem(LS_KEY, JSON.stringify([...state.excluded]));
@@ -1014,82 +1027,132 @@
       </div>`;
   }
 
+  function getPayLinesForTable(d) {
+    const wp = d.weeklyPayments;
+    const bars = wp?.bars || [];
+    const drill = state.payWeekDrill;
+    if (drill) {
+      const bar = bars.find(b => String(b.weekEnd) === String(drill));
+      return Array.isArray(bar?.lines) ? bar.lines : [];
+    }
+    return Array.isArray(d.payments?.all) ? d.payments.all : [];
+  }
+
+  function sortPayLines(lines) {
+    const { col, dir } = state.payTableSort;
+    const arr = [...lines];
+    const sign = dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (col === 'client') cmp = String(a.client || '').localeCompare(String(b.client || ''), 'ru');
+      else if (col === 'amount') cmp = (a.amount || 0) - (b.amount || 0);
+      else cmp = String(a.date || '').localeCompare(String(b.date || ''));
+      return cmp * sign;
+    });
+    return arr;
+  }
+
   // ─── Еженедельный чарт оплат ──────────────────────────────
   function renderWeeklyPayChart(d) {
     const wp = d.weeklyPayments;
     if (!wp || !Array.isArray(wp.bars) || wp.bars.length < 2) return '';
 
     const bars = wp.bars;
-    const maxVal = Math.max(...bars.map(b => b.total || 0), 1);
+    const drill = state.payWeekDrill;
+    const drilledBar = drill ? bars.find(b => String(b.weekEnd) === String(drill)) : null;
 
-    const cols = bars.map((b, i) => {
-      const h = ((b.total || 0) / maxVal * 100).toFixed(1);
-      const isLast = i === bars.length - 1;
-      const d2 = String(b.weekEnd || '').slice(5);
-      const [m, day] = d2.split('-');
-      const label = day && m ? `${day}.${m}` : d2;
-      return `
-        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}">
+    let chartCols = '';
+    let chartHint = '';
+    let maxVal = 1;
+
+    if (drilledBar && Array.isArray(drilledBar.days) && drilledBar.days.length) {
+      maxVal = Math.max(...drilledBar.days.map(x => x.total || 0), 1);
+      const w0 = fmtDate(drilledBar.weekStart);
+      const w1 = fmtDate(drilledBar.weekEnd);
+      chartHint = `<p class="wk-pay-drill-hint"><button type="button" class="wk-pay-back-btn" data-pay-back>← Все недели</button><span class="wk-pay-drill-range">Дни недели ${esc(w0)} — ${esc(w1)}</span></p>`;
+      chartCols = drilledBar.days.map((day) => {
+        const h = ((day.total || 0) / maxVal * 100).toFixed(1);
+        const ds = String(day.date || '').slice(5);
+        const [m, dd] = ds.split('-');
+        const label = dd && m ? `${dd}.${m}` : ds;
+        const wd = weekdayRu(day.date);
+        return `
+        <div class="wkly-col wkly-col-day">
+          <div class="wkly-bars">
+            <div class="wkly-bar wkly-bar-pay" style="height:${h}%"
+                 title="${esc(day.date)}: ${fmtRub(day.total)}"></div>
+          </div>
+          <div class="wkly-label">${esc(label)}${wd ? `<span class="wkly-wd">${esc(wd)}</span>` : ''}</div>
+        </div>`;
+      }).join('');
+    } else {
+      maxVal = Math.max(...bars.map(b => b.total || 0), 1);
+      chartCols = bars.map((b, i) => {
+        const h = ((b.total || 0) / maxVal * 100).toFixed(1);
+        const isLast = i === bars.length - 1;
+        const d2 = String(b.weekEnd || '').slice(5);
+        const [m, day] = d2.split('-');
+        const label = day && m ? `${day}.${m}` : d2;
+        const active = drill && String(b.weekEnd) === String(drill);
+        return `
+        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}${active ? ' wkly-col-active' : ''}" data-pay-week="${esc(b.weekEnd)}" title="Клик — разбивка по дням">
           <div class="wkly-bars">
             <div class="wkly-bar wkly-bar-pay" style="height:${h}%"
                  title="Оплаты: ${fmtRub(b.total)}"></div>
           </div>
           <div class="wkly-label">${esc(label)}</div>
         </div>`;
-    });
+      }).join('');
+      chartHint = '<p class="wk-pay-chart-hint muted">Клик по столбцу недели — график по дням и список оплат за эту неделю</p>';
+    }
 
     const lastBar = bars[bars.length - 1];
     const prevBar = bars[bars.length - 2];
     const delta = (lastBar.total || 0) - (prevBar.total || 0);
-    const deltaCls = delta > 0 ? 'delta-down' : delta < 0 ? 'delta-up' : ''; // оплаты: рост = хорошо
+    const deltaCls = delta > 0 ? 'delta-down' : delta < 0 ? 'delta-up' : '';
     const deltaSign = delta > 0 ? '+' : '';
 
-    const top5 = d.payments?.top5 || [];
+    const tableLines = sortPayLines(getPayLinesForTable(d));
+    const tblSum = tableLines.reduce((s, r) => s + (r.amount || 0), 0);
+    const tblUniq = new Set(tableLines.map(r => r.client)).size;
     const fromTop10 = d.payments?.fromTop10 || [];
+    const isCurrentContext = !drill || (lastBar && String(lastBar.weekEnd) === String(drill));
+    const sortMark = c => (state.payTableSort.col === c ? (state.payTableSort.dir === 'asc' ? '↑' : '↓') : '↕');
+
     const details = state.weeklyPayExpanded ? `
       <div class="wk-pay-expand">
         <div class="wk-pay-expand-kpis">
-          <span>Итого: <strong>${fmtRub(d.payments?.weekTotal || 0)}</strong></span>
-          <span>Клиентов оплатили: <strong>${d.payments?.count || 0}</strong></span>
-          <span>Из ТОП-10: <strong>${fromTop10.length}</strong></span>
+          <span>В таблице: <strong>${fmtRub(tblSum)}</strong></span>
+          <span>Строк оплат: <strong>${tableLines.length}</strong></span>
+          <span>Уник. клиентов: <strong>${tblUniq}</strong></span>
+          ${isCurrentContext ? `<span>Из ТОП-10 дебиторов: <strong>${fromTop10.length}</strong></span>` : ''}
         </div>
-        <div class="wk-pay-expand-cols">
-          <div>
-            <div class="mgr-section-sub">ТОП-5 крупнейших оплат</div>
-            <div class="mgr-table-wrap">
-              <table class="mgr-table">
-                <thead><tr><th>#</th><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
-                <tbody>
-                  ${top5.length ? top5.map((r, i) => `
-                    <tr>
-                      <td class="idx">${i + 1}</td>
-                      <td><strong>${esc(r.client)}</strong></td>
-                      <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
-                      <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
-                    </tr>
-                  `).join('') : '<tr><td colspan="4" class="empty-state">Нет оплат</td></tr>'}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <div class="mgr-section-sub">Оплатили из ТОП-10 дебиторов</div>
-            <div class="mgr-table-wrap">
-              <table class="mgr-table">
-                <thead><tr><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
-                <tbody>
-                  ${fromTop10.length ? fromTop10.map((r) => `
-                    <tr>
-                      <td><strong>${esc(r.client)}</strong></td>
-                      <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
-                      <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
-                    </tr>
-                  `).join('') : '<tr><td colspan="3" class="empty-state">Никто из ТОП-10 не оплатил</td></tr>'}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div class="mgr-section-sub">Все оплаты выбранного периода</div>
+        <div class="mgr-table-wrap wk-pay-full-table">
+          <table class="mgr-table mgr-table-pay-all">
+            <thead><tr>
+              <th class="idx">#</th>
+              <th><button type="button" class="wk-pay-sort" data-pay-sort="date">Дата ${sortMark('date')}</button></th>
+              <th><button type="button" class="wk-pay-sort" data-pay-sort="client">Клиент ${sortMark('client')}</button></th>
+              <th class="num"><button type="button" class="wk-pay-sort" data-pay-sort="amount">Сумма ${sortMark('amount')}</button></th>
+            </tr></thead>
+            <tbody>
+              ${tableLines.length ? tableLines.map((r, i) => `
+                <tr>
+                  <td class="idx">${i + 1}</td>
+                  <td class="wk-pay-dt">${esc(fmtDateWd(r.date || ''))}</td>
+                  <td><span class="wk-pay-client">${esc(r.client)}</span></td>
+                  <td class="num wk-pay-amt">${fmtRub(r.amount)}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="4" class="empty-state">Нет оплат за период</td></tr>'}
+            </tbody>
+          </table>
         </div>
+        ${isCurrentContext && fromTop10.length ? `
+        <div class="wk-pay-top10-note">
+          <span class="mgr-section-sub">Оплатили из ТОП-10 дебиторов (текущий срез ДЗ)</span>
+          <div class="wk-pay-chips">${fromTop10.map(r => `<span class="wk-pay-chip">${esc(r.client)} · ${fmtRub(r.amount)}</span>`).join('')}</div>
+        </div>` : (!isCurrentContext ? '<p class="muted wk-pay-top10-note">Сверка с ТОП-10 дебиторов доступна для текущей отчётной недели в общем виде графика.</p>' : '')}
       </div>
     ` : '';
 
@@ -1098,7 +1161,7 @@
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">💳 Оплаты по неделям
-              <span class="mgr-help" title="Суммы оплаченных счетов из вида «♥️Оплачено CSM» по неделям (среда → среда). Последний столбец — текущая неделя.">?</span>
+              <span class="mgr-help" title="Суммы оплаченных счетов из вида «♥️Оплачено CSM» по неделям (среда → среда). Клик по столбцу — по дням.">?</span>
             </h2>
             <p class="mgr-section-hint">Вид «♥️Оплачено CSM» · ${bars.length} недель</p>
           </div>
@@ -1107,8 +1170,9 @@
             <span class="wkly-delta-val">${deltaSign}${fmtRub(delta)}</span>
           </div>
         </div>
+        ${chartHint}
         <div class="wkly-legend">
-          <span class="wkly-legend-item wkly-legend-pay">Оплачено за неделю</span>
+          <span class="wkly-legend-item wkly-legend-pay">${drilledBar ? 'По дням (выбранная неделя)' : 'Оплачено за неделю'}</span>
           <span class="wk-current-week" style="font-size:0.78rem;color:var(--muted)">
             Текущая неделя: <strong style="color:var(--ok)">${fmtRub(wp.currentWeekTotal)}</strong>
             <span class="wk-current-pop">
@@ -1118,7 +1182,7 @@
           </span>
         </div>
         <div class="wkly-chart">
-          ${cols.join('')}
+          ${chartCols}
         </div>
         ${details}
       </div>`;
@@ -1741,7 +1805,40 @@
     // Обновить вручную
     document.getElementById('btn-refresh')?.addEventListener('click', doRefresh);
     document.getElementById('wk-pay-card')?.addEventListener('click', (e) => {
-      if (e.target.closest('a,button,input,select,textarea')) return;
+      const weekEl = e.target.closest('[data-pay-week]');
+      if (weekEl) {
+        const we = weekEl.getAttribute('data-pay-week');
+        if (we) {
+          if (state.payWeekDrill === we) {
+            state.payWeekDrill = null;
+          } else {
+            state.payWeekDrill = we;
+            state.weeklyPayExpanded = true;
+          }
+          render();
+        }
+        return;
+      }
+      if (e.target.closest('[data-pay-back]')) {
+        state.payWeekDrill = null;
+        render();
+        return;
+      }
+      const sortBtn = e.target.closest('[data-pay-sort]');
+      if (sortBtn) {
+        const col = sortBtn.getAttribute('data-pay-sort');
+        if (col) {
+          if (state.payTableSort.col === col) {
+            state.payTableSort.dir = state.payTableSort.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            state.payTableSort.col = col;
+            state.payTableSort.dir = col === 'amount' ? 'desc' : col === 'date' ? 'desc' : 'asc';
+          }
+          render();
+        }
+        return;
+      }
+      if (e.target.closest('a,input,select,textarea')) return;
       state.weeklyPayExpanded = !state.weeklyPayExpanded;
       render();
     });

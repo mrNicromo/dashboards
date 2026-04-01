@@ -50,7 +50,7 @@ final class DzWeekPayments
 
     /**
      * @return array{
-     *   bars: list<array{weekEnd: string, weekStart: string, total: float}>,
+     *   bars: list<array<string, mixed>>,
      *   currentWeekTotal: float,
      *   weekStart: string,
      *   weekEnd: string,
@@ -62,7 +62,8 @@ final class DzWeekPayments
         string $baseId,
         string $debtTableId,
         string $paidViewId,
-        int $weeks = 12
+        int $weeks = 12,
+        bool $withDetails = false
     ): array {
         $v = trim($paidViewId);
         if ($v === '' || preg_match('/^viw[a-zA-Z0-9]{3,}$/', $v) !== 1) {
@@ -73,12 +74,17 @@ final class DzWeekPayments
         $from = $now->modify('-' . (($weeks + 2) * 7) . ' days')->format('Y-m-d');
         $formula = "AND({Дата оплаты счета}, IS_AFTER({Дата оплаты счета}, '{$from}'))";
 
+        $query = [
+            'view'              => $v,
+            'filterByFormula'   => $formula,
+            'pageSize'          => '100',
+            'cellFormat'        => 'string',
+            'timeZone'          => 'Europe/Moscow',
+            'userLocale'        => 'ru',
+        ];
+
         try {
-            $raw = Airtable::fetchAllPages($baseId, $debtTableId, [
-                'view' => $v,
-                'filterByFormula' => $formula,
-                'pageSize' => '100',
-            ], $token);
+            $raw = Airtable::fetchAllPages($baseId, $debtTableId, $query, $token);
         } catch (Throwable $e) {
             return [
                 'bars' => [],
@@ -98,13 +104,27 @@ final class DzWeekPayments
 
         $templates = [];
         for ($i = 0; $i < $weeks; $i++) {
-            $end = $thisWedDt->modify('-' . (7 * $i) . ' days');
+            $end   = $thisWedDt->modify('-' . (7 * $i) . ' days');
             $start = $end->modify('-7 days');
-            $templates[$end->format('Y-m-d')] = [
-                'weekEnd' => $end->format('Y-m-d'),
-                'weekStart' => $start->format('Y-m-d'),
-                'total' => 0.0,
+            $we    = $end->format('Y-m-d');
+            $ws    = $start->format('Y-m-d');
+            $row   = [
+                'weekEnd'   => $we,
+                'weekStart' => $ws,
+                'total'     => 0.0,
             ];
+            if ($withDetails) {
+                $row['days']    = [];
+                $row['entries'] = [];
+                $startI = DateTimeImmutable::createFromFormat('Y-m-d', $ws, $tz);
+                $endI   = DateTimeImmutable::createFromFormat('Y-m-d', $we, $tz);
+                if ($startI !== false && $endI !== false) {
+                    for ($d = $startI; $d <= $endI; $d = $d->modify('+1 day')) {
+                        $row['days'][] = ['date' => $d->format('Y-m-d'), 'total' => 0.0];
+                    }
+                }
+            }
+            $templates[$we] = $row;
         }
 
         $currentWeekTotal = 0.0;
@@ -122,6 +142,16 @@ final class DzWeekPayments
             foreach ($templates as &$t) {
                 if ($d >= $t['weekStart'] && $d <= $t['weekEnd']) {
                     $t['total'] += $amt;
+                    if ($withDetails && isset($t['days']) && is_array($t['days'])) {
+                        foreach ($t['days'] as &$dayRow) {
+                            if (($dayRow['date'] ?? '') === $d) {
+                                $dayRow['total'] += $amt;
+                                break;
+                            }
+                        }
+                        unset($dayRow);
+                        $t['entries'][] = ['date' => $d, 'amount' => $amt, 'fields' => $f];
+                    }
                     break;
                 }
             }
@@ -135,6 +165,12 @@ final class DzWeekPayments
         usort($bars, static fn (array $a, array $b): int => strcmp($a['weekEnd'], $b['weekEnd']));
         foreach ($bars as &$b) {
             $b['total'] = round($b['total'], 2);
+            if ($withDetails && isset($b['days']) && is_array($b['days'])) {
+                foreach ($b['days'] as &$drow) {
+                    $drow['total'] = round((float) ($drow['total'] ?? 0), 2);
+                }
+                unset($drow);
+            }
         }
         unset($b);
 

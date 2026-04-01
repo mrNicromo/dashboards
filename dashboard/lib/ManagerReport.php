@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Дашборд руководителя — загрузка и обработка данных из Airtable.
  *
  * Таблица ДЗ:       tblLEQYWypaYtAcp6
+ *   Сайт/домен (приоритет): fldTjt7eBeGR7qUHg — колонка из ссылки на поле в Airtable
  *   Вид долги:      viw977k6GUNrkeRRy  (🔸Debt 15,30,60,90 Демидова)
  *   Вид оплаты:     viwNp3aOtWxmQuKp5  (♥️Оплачено CSM)
  * Таблица Клиенты:  tblIKAi1gcFayRJTn
@@ -15,6 +16,8 @@ final class ManagerReport
     private const DEBT_TABLE  = 'tblLEQYWypaYtAcp6';
     private const DEBT_VIEW   = 'viw977k6GUNrkeRRy';
     private const PAID_VIEW   = 'viwNp3aOtWxmQuKp5';
+    /** Основной столбец с сайтом (Accounts / связи) — стабильный id из URL Airtable */
+    private const SITE_FIELD_ID = 'fldTjt7eBeGR7qUHg';
     private const CS_TABLE    = 'tblIKAi1gcFayRJTn';
     private const CS_ALL_VIEW = 'viwz7G1vPxxg0WvC3';
 
@@ -69,6 +72,19 @@ final class ManagerReport
         return mb_strtolower(trim($v));
     }
 
+    /** ЮЛ для подписи: пусто, если в поле попал только id записи Airtable */
+    private static function legalForDisplay(string $raw): string
+    {
+        $t = trim($raw);
+        if ($t === '') {
+            return '';
+        }
+        if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $t)) {
+            return '';
+        }
+        return $t;
+    }
+
     private static function siteLabel(string $site, string $legal): string
     {
         $s = trim($site);
@@ -79,29 +95,99 @@ final class ManagerReport
     }
 
     /** @param array<string,mixed> $f */
-    private static function extractSiteFromFields(array $f): string
+    private static function siteFromRaw(mixed $siteRaw): string
     {
-        $siteRaw = $f['Accounts (Связи)'] ?? $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
         if (is_string($siteRaw) && $siteRaw !== '') {
             $v = trim(explode(',', $siteRaw)[0]);
-            // Игнорируем record id вида recXXXXXXXXXXXXXX — это не домен/алиас.
-            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) return '';
+            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) {
+                return '';
+            }
             return $v;
         }
         if (is_array($siteRaw) && !empty($siteRaw)) {
             $first = $siteRaw[0];
-            $v = is_string($first) ? trim($first) : (string)($first['name'] ?? '');
-            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) return '';
+            $v     = is_string($first) ? trim($first) : (string) ($first['name'] ?? '');
+            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) {
+                return '';
+            }
             return $v;
         }
         return '';
     }
 
+    /**
+     * Домен/алиас клиента: сначала столбец fldTjt7eBeGR7qUHg (имя подставляется из Meta API), затем запасные поля.
+     *
+     * @param array<string,mixed> $f
+     */
+    private static function extractSiteFromFields(array $f, string $primaryFieldName = ''): string
+    {
+        if ($primaryFieldName !== '' && array_key_exists($primaryFieldName, $f)) {
+            $fromPrimary = self::siteFromRaw($f[$primaryFieldName]);
+            if ($fromPrimary !== '') {
+                return $fromPrimary;
+            }
+        }
+        $siteRaw = $f['Accounts (Связи)'] ?? $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
+        return self::siteFromRaw($siteRaw);
+    }
+
+    /**
+     * Подписи клиентов в оплатах по неделям + убрать сырые поля из ответа.
+     *
+     * @param array<string, mixed> $wp
+     * @param array<string, string> $legalSiteMap
+     * @return array<string, mixed>
+     */
+    private static function enrichWeeklyPayments(array $wp, array $legalSiteMap, string $siteFieldName): array
+    {
+        if (($wp['error'] ?? null) !== null) {
+            return $wp;
+        }
+        foreach ($wp['bars'] ?? [] as &$bar) {
+            $lines = [];
+            foreach ($bar['entries'] ?? [] as $e) {
+                $f = $e['fields'] ?? [];
+                if (!is_array($f)) {
+                    continue;
+                }
+                $rawЮл       = trim((string) ($f['ЮЛ клиента'] ?? ''));
+                $legalDisp   = self::legalForDisplay($rawЮл);
+                $directSite  = self::extractSiteFromFields($f, $siteFieldName);
+                $mappedSite  = $directSite !== '' ? $directSite : ($legalSiteMap[self::normKey($rawЮл)] ?? '');
+                $displayClient = self::siteLabel((string) $mappedSite, $legalDisp);
+                $lines[]     = [
+                    'date'   => (string) ($e['date'] ?? ''),
+                    'amount' => round((float) ($e['amount'] ?? 0), 2),
+                    'client' => $displayClient,
+                ];
+            }
+            usort($lines, static fn($a, $b) => [$b['date'], $b['amount']] <=> [$a['date'], $a['amount']]);
+            $bar['lines'] = $lines;
+            unset($bar['entries']);
+        }
+        unset($bar);
+
+        return $wp;
+    }
+
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
-        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::PAID_VIEW], $pat);
+        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, [
+            'view'         => self::PAID_VIEW,
+            'cellFormat'   => 'string',
+            'timeZone'     => 'Europe/Moscow',
+            'userLocale'   => 'ru',
+        ], $pat);
         $mrrData    = self::computeMrr($pat, $baseId);
+
+        $siteFieldName = '';
+        try {
+            $siteFieldName = Airtable::getFieldNameById($baseId, self::DEBT_TABLE, self::SITE_FIELD_ID, $pat) ?? '';
+        } catch (Throwable) {
+            $siteFieldName = '';
+        }
         [$prevWed, $thisWed] = self::weekRange();
 
         // Нормализованный lookup: lowercase+trim → mrr value
@@ -112,14 +198,16 @@ final class ManagerReport
             $mrrNorm[mb_strtolower(trim($k))] = $v;
         }
 
-        $report = self::build($debtRecs, $paidRecs, $mrrData['value'], $prevWed, $thisWed, $rawClientMrr, $mrrNorm);
+        $report = self::build($debtRecs, $paidRecs, $mrrData['value'], $prevWed, $thisWed, $rawClientMrr, $mrrNorm, $siteFieldName);
 
         // Еженедельная история ДЗ — serious overdue = 61-90 + 91+
         $overdueDebt = ($report['groupTotals']['61-90'] ?? 0.0) + ($report['groupTotals']['91+'] ?? 0.0);
         $report['weeklyHistory']  = DzWeeklyHistory::recordAndGet('manager', $report['totalDebt'], $overdueDebt);
 
-        // Еженедельные оплаты — серия по неделям для чарта
-        $report['weeklyPayments'] = DzWeekPayments::weeklyPaidSeries($pat, $baseId, self::DEBT_TABLE, self::PAID_VIEW);
+        // Еженедельные оплаты: недели + по дням + сырые поля → обогащаем подписью клиента
+        $wp = DzWeekPayments::weeklyPaidSeries($pat, $baseId, self::DEBT_TABLE, self::PAID_VIEW, 12, true);
+        $report['weeklyPayments'] = self::enrichWeeklyPayments($wp, $report['legalSiteMap'] ?? [], $siteFieldName);
+        unset($report['legalSiteMap']);
 
         // Мета MRR (месяц обновления, дата, заметка)
         $report['mrrMeta'] = $mrrData;
@@ -297,7 +385,8 @@ final class ManagerReport
         string $prevWed,
         string $thisWed,
         array $clientMrr = [],    // точный map: clientName => mrr
-        array $mrrNorm   = []     // нормализованный map: mb_strtolower(trim(name)) => mrr
+        array $mrrNorm   = [],    // нормализованный map: mb_strtolower(trim(name)) => mrr
+        string $siteFieldName = '' // имя поля fldTjt7eBeGR7qUHg из Meta API
     ): array {
         // Вспомогалка для поиска MRR по имени/сайту с нормализацией.
         // clientMrr кодируется по домену (Site ID из CS ALL), поэтому приоритет — site.
@@ -336,9 +425,11 @@ final class ManagerReport
             $юл = trim((string) ($f['ЮЛ клиента'] ?? 'Без названия'));
             if ($юл === '') $юл = 'Без названия';
 
-            // Отображаемое имя: берём из поля Accounts / Accounts (Связи), иначе ЮЛ клиента
+            // Отображаемое имя: приоритет — колонка fldTjt7eBeGR7qUHg, затем Accounts / Accounts (Связи)
             // cellFormat=string возвращает имена связанных записей через запятую
-            $accountsRaw = $f['Accounts'] ?? $f['Accounts (Связи)'] ?? null;
+            $accountsRaw = ($siteFieldName !== '' && array_key_exists($siteFieldName, $f))
+                ? $f[$siteFieldName]
+                : ($f['Accounts'] ?? $f['Accounts (Связи)'] ?? null);
             if (is_string($accountsRaw) && $accountsRaw !== '') {
                 $client = trim(explode(',', $accountsRaw)[0]);
             } elseif (is_array($accountsRaw) && !empty($accountsRaw)) {
@@ -349,8 +440,8 @@ final class ManagerReport
                 $client = $юл;
             }
 
-            // Сайт клиента: лукап-поле «Accounts (Связи) (from Связи)»
-            $site = self::extractSiteFromFields($f);
+            // Сайт клиента: сначала fldTjt7eBeGR7qUHg, затем lookup-поля
+            $site = self::extractSiteFromFields($f, $siteFieldName);
             $displayClient = self::siteLabel($site, $юл);
             if ($site !== '') {
                 $siteByLegal[self::normKey($юл)] = $site;
@@ -453,9 +544,10 @@ final class ManagerReport
                 continue;
             }
             $amount = self::parseAmount($f['Сумма счета'] ?? $f['Фактическая задолженность'] ?? 0);
-            $directSite = self::extractSiteFromFields($f);
+            $directSite = self::extractSiteFromFields($f, $siteFieldName);
             $mappedSite = $directSite !== '' ? $directSite : ($siteByLegal[self::normKey($client)] ?? ($clients[$client]['site'] ?? ''));
-            $displayClient = self::siteLabel((string)$mappedSite, $client);
+            $legalDisp = self::legalForDisplay($client);
+            $displayClient = self::siteLabel((string) $mappedSite, $legalDisp);
             $paidEntries[] = ['client' => $displayClient, 'amount' => $amount, 'date' => $payDate];
 
             if (!isset($payByClient[$client])) {
@@ -467,7 +559,9 @@ final class ManagerReport
             }
         }
 
-        // ТОП-5 крупнейших оплат (по отдельным записям)
+        // Все оплаты текущей отчётной недели (для таблицы на фронте) и ТОП-5
+        usort($paidEntries, static fn($a, $b) => [$b['date'], $b['amount']] <=> [$a['date'], $a['amount']]);
+        $allWeekPayments = $paidEntries;
         usort($paidEntries, static fn($a, $b) => $b['amount'] <=> $a['amount']);
         $top5 = array_slice($paidEntries, 0, 5);
 
@@ -511,7 +605,9 @@ final class ManagerReport
                 'fromTop10' => $fromTop10,
                 'weekTotal' => array_sum(array_column(array_values($payByClient), 'total')),
                 'count'     => count($payByClient),
+                'all'       => $allWeekPayments,
             ],
+            'legalSiteMap'    => $siteByLegal,
             'allRows'         => $allRows,    // все строки для клиентской фильтрации
             'allClients'      => $allClients, // все клиенты (не только TOP-10)
             'byManager'       => array_values($byMgr), // агрегация по менеджерам
