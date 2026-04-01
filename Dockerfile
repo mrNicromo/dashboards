@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev \
 # Включаем mod_headers на случай будущих заголовков безопасности
 RUN a2enmod headers
 
-COPY railway-entrypoint.sh /usr/local/bin/railway-entrypoint.sh
-RUN chmod +x /usr/local/bin/railway-entrypoint.sh
-
 COPY dashboard/ /var/www/html/
 
 # Права для кэша и снапшотов
@@ -22,5 +19,3 @@ RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
     && chown -R www-data:www-data /var/www/html/cache /var/www/html/snapshots
 
 EXPOSE 80
-
-CMD ["/usr/local/bin/railway-entrypoint.sh"]
