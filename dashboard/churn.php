@@ -7,6 +7,7 @@ require_once __DIR__ . '/lib/ChurnReport.php';
 
 $c             = dashboard_config();
 $bootstrapJson = '';
+$errorMsg      = '';
 $hasPat        = $c['airtable_pat'] !== '';
 
 // Используем только кэш — страница загружается мгновенно.
@@ -38,7 +39,7 @@ if ($hasPat) {
 <?php if (!$hasPat): /* PAT не настроен */ ?>
   <div class="setup">
     <h1>Угроза Churn</h1>
-    <p>Нужен токен Airtable. Проверьте <code>config.php</code>.</p>
+    <p>Нужен токен Airtable. Проверьте <code>config.php</code> или переменную окружения <code>AIRTABLE_PAT</code>.</p>
     <?php if ($errorMsg !== ''): ?>
       <p class="setup-err"><strong>Ошибка:</strong> <?= htmlspecialchars($errorMsg, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
