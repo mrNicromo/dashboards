@@ -81,13 +81,18 @@ final class ManagerReport
     /** @param array<string,mixed> $f */
     private static function extractSiteFromFields(array $f): string
     {
-        $siteRaw = $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
+        $siteRaw = $f['Accounts (Связи)'] ?? $f['Accounts (Связи) (from Связи)'] ?? $f['Site'] ?? $f['Сайт'] ?? null;
         if (is_string($siteRaw) && $siteRaw !== '') {
-            return trim(explode(',', $siteRaw)[0]);
+            $v = trim(explode(',', $siteRaw)[0]);
+            // Игнорируем record id вида recXXXXXXXXXXXXXX — это не домен/алиас.
+            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) return '';
+            return $v;
         }
         if (is_array($siteRaw) && !empty($siteRaw)) {
             $first = $siteRaw[0];
-            return is_string($first) ? trim($first) : (string)($first['name'] ?? '');
+            $v = is_string($first) ? trim($first) : (string)($first['name'] ?? '');
+            if (preg_match('/^rec[a-zA-Z0-9]{10,}$/', $v)) return '';
+            return $v;
         }
         return '';
     }
