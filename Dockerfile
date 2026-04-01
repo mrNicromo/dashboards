@@ -6,7 +6,10 @@ WORKDIR /var/www/html
 # libonig-dev — для mbstring, libcurl4-openssl-dev — для ext-curl
 RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev libcurl4-openssl-dev \
     && docker-php-ext-install mbstring curl \
-    && echo "allow_url_fopen=On" > /usr/local/etc/php/conf.d/zz-railway.ini \
+    && docker-php-ext-enable curl \
+    && printf "%s\n" "allow_url_fopen=On" > /usr/local/etc/php/conf.d/zz-railway.ini \
+    && php -r "exit(function_exists('curl_init') ? 0 : 1);" \
+    && php -r "exit((int)!ini_get('allow_url_fopen'));" \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
