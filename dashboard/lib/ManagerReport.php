@@ -174,12 +174,8 @@ final class ManagerReport
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
-        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, [
-            'view'         => self::PAID_VIEW,
-            'cellFormat'   => 'string',
-            'timeZone'     => 'Europe/Moscow',
-            'userLocale'   => 'ru',
-        ], $pat);
+        // Вид «оплачено»: без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
+        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::PAID_VIEW], $pat);
         $mrrData    = self::computeMrr($pat, $baseId);
 
         $siteFieldName = '';
@@ -533,9 +529,7 @@ final class ManagerReport
 
         foreach ($paidRecs as $r) {
             $f       = $r['fields'] ?? [];
-            $payDate = (string) ($f['Дата оплаты счета'] ?? '');
-            // Дата может прийти как "2025-03-20T00:00:00.000Z" — берём первые 10 символов
-            if (strlen($payDate) > 10) $payDate = substr($payDate, 0, 10);
+            $payDate = DzWeekPayments::normalizePaymentDateYmd($f['Дата оплаты счета'] ?? '');
             if ($payDate === '' || $payDate < $prevWed || $payDate > $thisWed) {
                 continue;
             }

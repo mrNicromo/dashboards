@@ -38,14 +38,35 @@ final class DzWeekPayments
         return is_numeric($s) ? (float) $s : 0.0;
     }
 
-    private static function payDateStr(array $fields): string
+    /**
+     * Дата оплаты в Y-m-d для фильтров и сравнений.
+     * Без cellFormat API отдаёт ISO; с cellFormat=string+ru — «25.03.2026», иначе всё уходит в ноль.
+     */
+    public static function normalizePaymentDateYmd(mixed $raw): string
     {
-        $payDate = (string) ($fields['Дата оплаты счета'] ?? '');
-        if (strlen($payDate) > 10) {
-            $payDate = substr($payDate, 0, 10);
+        if ($raw === null || $raw === '') {
+            return '';
+        }
+        $s = trim((string) $raw);
+        if ($s === '') {
+            return '';
+        }
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $s, $m)) {
+            return $m[1];
+        }
+        if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{4})/u', $s, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+        if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $s, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
         }
 
-        return $payDate;
+        return '';
+    }
+
+    private static function payDateStr(array $fields): string
+    {
+        return self::normalizePaymentDateYmd($fields['Дата оплаты счета'] ?? '');
     }
 
     /**
@@ -74,13 +95,11 @@ final class DzWeekPayments
         $from = $now->modify('-' . (($weeks + 2) * 7) . ' days')->format('Y-m-d');
         $formula = "AND({Дата оплаты счета}, IS_AFTER({Дата оплаты счета}, '{$from}'))";
 
+        // Без cellFormat: даты приходят как ISO (YYYY-MM-DD), иначе при ru-locale строки ломают разбор.
         $query = [
             'view'              => $v,
             'filterByFormula'   => $formula,
             'pageSize'          => '100',
-            'cellFormat'        => 'string',
-            'timeZone'          => 'Europe/Moscow',
-            'userLocale'        => 'ru',
         ];
 
         try {
