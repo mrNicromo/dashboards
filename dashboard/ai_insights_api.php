@@ -18,6 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_check();
 
+$rawIn = file_get_contents('php://input') ?: '{}';
+$bodyIn = json_decode($rawIn, true);
+$forceRefresh = is_array($bodyIn) && !empty($bodyIn['forceRefresh']);
+
 $c = dashboard_config();
 $geminiKey = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
 $groqKey = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? '')));
@@ -47,22 +51,34 @@ if (!is_dir($dir)) {
     exit;
 }
 
-try {
-    AiInsightsContext::refreshCachesFromAirtable($c);
-} catch (Throwable $e) {
-    http_response_code(502);
-    echo json_encode([
-        'ok' => false,
-        'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+$dzFile = $dir . '/dz-data-default.json';
+$refreshTtlSec = 180;
+$skipAirtableRefresh = false;
+if (!$forceRefresh && is_file($dzFile)) {
+    $ageSec = time() - (int) filemtime($dzFile);
+    if ($ageSec >= 0 && $ageSec < $refreshTtlSec) {
+        $skipAirtableRefresh = true;
+    }
+}
+
+if (!$skipAirtableRefresh) {
+    try {
+        AiInsightsContext::refreshCachesFromAirtable($c);
+    } catch (Throwable $e) {
+        http_response_code(502);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 }
 
 $baseId = (string) ($c['airtable_base_id'] ?? '');
 $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
 
 $system = <<<'PROMPT'
-Ты — финансовый и операционный аналитик B2B SaaS. JSON — единый снимок по всем основным экранам дашборда; перед этим запросом данные только что подтянуты из Airtable (и связанных источников отчётов), не устаревший кэш: dz — дебиторка и корзины aging, менеджеры, статусы, топ юрлица и строки счетов; churn — риск MRR по сегментам/вертикалям/продуктам/CSM, клиенты, прогнозы; factLosses — фактические потери YTD (churn + downsell) с разбивкой по месяцам, продуктам, CSM, причинам, примерам строк; crossDashboard — недельная динамика ДЗ, снимок MRR, доп. корзины aging, топ клиентов по недельному изменению долга. Опирайся на все непустые разделы и согласуй выводы между ними (ДЗ ↔ churn ↔ потери ↔ тренды).
+Ты — финансовый и операционный аналитик B2B SaaS. JSON — единый снимок по всем основным экранам дашборда; при полной синхронизации он соответствует актуальным данным из Airtable и связанных отчётов. dz — дебиторка и корзины aging, менеджеры, статусы, топ юрлица и строки счетов; churn — риск MRR по сегментам/вертикалям/продуктам/CSM, клиенты, прогнозы; factLosses — фактические потери YTD (churn + downsell) с разбивкой по месяцам, продуктам, CSM, причинам, примерам строк; crossDashboard — недельная динамика ДЗ, снимок MRR, доп. корзины aging, топ клиентов по недельному изменению долга. Опирайся на все непустые разделы и согласуй выводы между ними (ДЗ ↔ churn ↔ потери ↔ тренды).
 
 Если ниже есть блок «История сохранённых снимков», используй его для оценки тренда (рост/падение ключевых сумм). В конце ответа добавь короткий раздел «## Прогноз и риски» с осторожным сценарием на 1–3 месяца (явно укажи допущения и неопределённость; не выдавай точные числа без данных).
 
@@ -77,7 +93,11 @@ $system = <<<'PROMPT'
 PROMPT;
 
 $historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
-$user = "Текущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (для тренда и прогноза)\n" . $historyBlock;
+$cacheNote = '';
+if ($skipAirtableRefresh && is_file($dzFile)) {
+    $cacheNote = "\n\n(Служебно: полная синхронизация с Airtable пропущена — использован недавний серверный кэш, возраст снимка ДЗ: ~" . (string) max(0, time() - (int) filemtime($dzFile)) . " с.)";
+}
+$user = "Текущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (для тренда и прогноза)\n" . $historyBlock . $cacheNote;
 
 $gen = null;
 $provider = null;
@@ -132,7 +152,8 @@ echo json_encode([
     'ok' => true,
     'text' => $text,
     'provider' => $provider,
-    'dataRefreshedFromAirtable' => true,
+    'dataRefreshedFromAirtable' => !$skipAirtableRefresh,
+    'usedRecentCache' => $skipAirtableRefresh,
     'historyCount' => $histCount,
     'historyChart' => AiInsightsHistory::chartSeries(56),
 ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);

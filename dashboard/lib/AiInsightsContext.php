@@ -401,9 +401,23 @@ final class AiInsightsContext
         return is_array($d) ? $d : [];
     }
 
+    /**
+     * Содержимое cache/dz-data-default.json: обёртка { ok, data } или плоский снимок (legacy).
+     *
+     * @param array<string, mixed> $dzRoot
+     * @return array<string, mixed>
+     */
+    public static function unwrapDzCache(array $dzRoot): array
+    {
+        return self::dzInner($dzRoot);
+    }
+
     /** @param array<string, mixed> $dzRoot */
     private static function dzInner(array $dzRoot): array
     {
+        if (!isset($dzRoot['data']) && (isset($dzRoot['kpi']) || isset($dzRoot['totalDebt']))) {
+            return $dzRoot;
+        }
         $d = $dzRoot['data'] ?? [];
         if (isset($d['data']['kpi'])) {
             return $d['data'];
@@ -431,6 +445,7 @@ final class AiInsightsContext
      */
     public static function refreshCachesFromAirtable(array $c): void
     {
+        require_once __DIR__ . '/Airtable.php';
         require_once __DIR__ . '/DzReport.php';
         require_once __DIR__ . '/ChurnReport.php';
         require_once __DIR__ . '/ChurnFactReport.php';

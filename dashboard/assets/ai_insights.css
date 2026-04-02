@@ -233,3 +233,22 @@
 .ai-markdown p {
   margin: 8px 0;
 }
+
+.ai-sync-line {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--accent-dim);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.ai-markdown-empty {
+  border-style: dashed;
+}
+.ai-markdown-empty .ai-output-placeholder {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}

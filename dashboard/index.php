@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/AiInsightsContext.php';
 $c = dashboard_config();
 
 // ── Читаем кэши ────────────────────────────────────────────────────────────
@@ -10,7 +11,7 @@ function readCache(string $path): array {
     return is_array($d) ? $d : [];
 }
 
-$dz    = readCache(__DIR__ . '/cache/dz-data-default.json');
+$dz    = AiInsightsContext::unwrapDzCache(readCache(__DIR__ . '/cache/dz-data-default.json'));
 $churn = readCache(__DIR__ . '/cache/churn-report.json');
 $fact  = readCache(__DIR__ . '/cache/churn-fact-report.json');
 

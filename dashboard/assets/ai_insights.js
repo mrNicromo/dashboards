@@ -309,6 +309,75 @@
     } catch (_) {}
   }
 
+  function mergeBootstrapCharts(charts) {
+    const raw = document.getElementById('ai-bootstrap');
+    if (!raw || !charts) return;
+    try {
+      const p = JSON.parse(raw.textContent || '{}');
+      p.charts = charts;
+      p.chartsNeedAsyncRefresh = false;
+      raw.textContent = JSON.stringify(p);
+    } catch (_) {}
+  }
+
+  async function refreshChartsFromApi(payload) {
+    const syncEl = document.getElementById('ai-charts-sync-status');
+    const csrf =
+      document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || payload.csrf || '';
+    if (!csrf) {
+      if (syncEl) {
+        syncEl.textContent = 'Нет CSRF — обновите страницу.';
+        syncEl.hidden = false;
+      }
+      return;
+    }
+    if (syncEl) {
+      syncEl.textContent = 'Синхронизация с Airtable для графиков…';
+      syncEl.hidden = false;
+    }
+    try {
+      const r = await fetch('ai_insights_charts_api.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf,
+        },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        if (syncEl) {
+          syncEl.textContent =
+            'Графики: ' + (j.error || 'ошибка') + ' Откройте ДЗ или главную для прогрева кэша.';
+          syncEl.hidden = false;
+        }
+        return;
+      }
+      mergeBootstrapCharts(j.charts);
+      let next = payload;
+      const raw = document.getElementById('ai-bootstrap');
+      if (raw) {
+        try {
+          next = JSON.parse(raw.textContent || '{}');
+        } catch (_) {}
+      }
+      buildCharts(next);
+      if (syncEl) {
+        syncEl.textContent = 'Графики обновлены из Airtable.';
+        syncEl.hidden = false;
+        setTimeout(() => {
+          syncEl.hidden = true;
+        }, 4000);
+      }
+    } catch (e) {
+      if (syncEl) {
+        syncEl.textContent =
+          'Сеть: не удалось подгрузить графики. ' + esc(String(e && e.message ? e.message : e));
+        syncEl.hidden = false;
+      }
+    }
+  }
+
   function syncThemeBtn() {
     const root = document.getElementById('html-root');
     const btn = document.getElementById('btn-theme');
@@ -346,12 +415,12 @@
   function renderMarkdown(text) {
     const out = document.getElementById('ai-output');
     if (!out) return;
+    out.classList.remove('ai-markdown-empty');
     if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
       out.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
     } else {
       out.innerHTML = '<pre style="white-space:pre-wrap;margin:0">' + esc(text) + '</pre>';
     }
-    out.hidden = false;
   }
 
   async function generate() {
@@ -369,7 +438,7 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ forceRefresh: false }),
       });
       const j = await r.json();
       if (!j.ok) {
@@ -378,7 +447,11 @@
         return;
       }
       const prov = j.provider ? ' · ' + j.provider : '';
-      const fresh = j.dataRefreshedFromAirtable ? ' Данные из Airtable обновлены перед анализом.' : '';
+      const fresh = j.dataRefreshedFromAirtable
+        ? ' Данные из Airtable обновлены перед анализом.'
+        : j.usedRecentCache
+          ? ' Использован недавний кэш (полная синхронизация не требовалась).'
+          : '';
       st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov + fresh;
       st.classList.add('ai-status-ok');
       renderMarkdown(j.text || '');
@@ -448,6 +521,10 @@
 
     document.getElementById('btn-generate')?.addEventListener('click', generate);
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
+
+    if (payload.chartsNeedAsyncRefresh) {
+      refreshChartsFromApi(payload);
+    }
   }
 
   if (document.readyState === 'loading') {
