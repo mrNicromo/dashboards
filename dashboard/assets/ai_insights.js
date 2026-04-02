@@ -174,6 +174,8 @@
 
     const aging = ch.dzAging;
     if (aging && aging.labels && document.getElementById('chart-aging')) {
+      const av = (aging.values || []).map((x) => Number(x));
+      const agingMax = av.length ? Math.max(...av, 0) : 0;
       chartInstances.push(
         new Chart(document.getElementById('chart-aging'), {
           type: 'bar',
@@ -194,6 +196,8 @@
             scales: {
               x: { ticks: { color: muted }, grid: { color: grid } },
               y: {
+                beginAtZero: true,
+                max: agingMax < 1 ? 1 : undefined,
                 ticks: { color: muted },
                 grid: { color: grid },
               },
@@ -231,16 +235,21 @@
     }
 
     const mgr = ch.dzByManager;
-    if (mgr && mgr.labels && mgr.labels.length && document.getElementById('chart-managers')) {
+    const mgrCanvas = document.getElementById('chart-managers');
+    if (mgrCanvas) {
+      const hasMgr = mgr && mgr.labels && mgr.labels.length > 0;
+      const mLabels = hasMgr ? mgr.labels : ['нет данных в кэше'];
+      const mVals = hasMgr ? mgr.values : [0];
+      const mMax = Math.max(...(mVals || []).map((x) => Number(x)), 0);
       chartInstances.push(
-        new Chart(document.getElementById('chart-managers'), {
+        new Chart(mgrCanvas, {
           type: 'bar',
           data: {
-            labels: mgr.labels,
+            labels: mLabels,
             datasets: [
               {
                 label: '₽',
-                data: mgr.values,
+                data: mVals,
                 backgroundColor: pal[0] + '88',
                 borderColor: pal[0],
                 borderWidth: 1,
@@ -251,7 +260,12 @@
             indexAxis: 'y',
             ...commonOpts,
             scales: {
-              x: { ticks: { color: muted }, grid: { color: grid } },
+              x: {
+                beginAtZero: true,
+                max: !hasMgr || mMax < 1 ? 1 : undefined,
+                ticks: { color: muted },
+                grid: { color: grid },
+              },
               y: { ticks: { color: muted }, grid: { display: false } },
             },
           },
@@ -309,15 +323,36 @@
     } catch (_) {}
   }
 
-  function mergeBootstrapCharts(charts) {
+  function mergeBootstrapCharts(charts, chartHints) {
     const raw = document.getElementById('ai-bootstrap');
     if (!raw || !charts) return;
     try {
       const p = JSON.parse(raw.textContent || '{}');
       p.charts = charts;
+      if (chartHints && typeof chartHints === 'object') {
+        p.chartHints = chartHints;
+      }
       p.chartsNeedAsyncRefresh = false;
       raw.textContent = JSON.stringify(p);
     } catch (_) {}
+  }
+
+  function applyChartHints(payload) {
+    const h = payload.chartHints || {};
+    function setFoot(id, msg) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const m = String(msg || '').trim();
+      if (m) {
+        el.textContent = m;
+        el.hidden = false;
+      } else {
+        el.textContent = '';
+        el.hidden = true;
+      }
+    }
+    setFoot('ai-hint-aging', h.aging);
+    setFoot('ai-hint-managers', h.managers);
   }
 
   async function refreshChartsFromApi(payload) {
@@ -353,7 +388,7 @@
         }
         return;
       }
-      mergeBootstrapCharts(j.charts);
+      mergeBootstrapCharts(j.charts, j.chartHints);
       let next = payload;
       const raw = document.getElementById('ai-bootstrap');
       if (raw) {
@@ -362,6 +397,7 @@
         } catch (_) {}
       }
       buildCharts(next);
+      applyChartHints(next);
       if (syncEl) {
         syncEl.textContent = 'Графики обновлены из Airtable.';
         syncEl.hidden = false;
@@ -405,6 +441,7 @@
         try {
           const payload = JSON.parse(raw.textContent || '{}');
           buildCharts(payload);
+          applyChartHints(payload);
           buildHistoryChart(payload.historyChart);
         } catch (_) {}
       }
@@ -429,7 +466,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     btn.disabled = true;
-    st.textContent = 'Запрос к модели… (история снимков добавлена в контекст)';
+    st.textContent = 'Синхронизация с Airtable и запрос к модели…';
     st.className = 'ai-card-hint';
     try {
       const r = await fetch('ai_insights_api.php', {
@@ -438,9 +475,16 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({ forceRefresh: false }),
+        body: JSON.stringify({ forceRefresh: true }),
       });
-      const j = await r.json();
+      let j = {};
+      try {
+        j = await r.json();
+      } catch (parseErr) {
+        st.textContent = 'Ответ сервера не JSON (HTTP ' + r.status + '). Проверьте деплой и логи.';
+        st.classList.add('ai-status-err');
+        return;
+      }
       if (!j.ok) {
         st.textContent = j.error || 'Ошибка';
         st.classList.add('ai-status-err');
@@ -454,7 +498,36 @@
           : '';
       st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov + fresh;
       st.classList.add('ai-status-ok');
-      renderMarkdown(j.text || '');
+      st.classList.remove('ai-status-err');
+
+      if (j.charts) {
+        mergeBootstrapCharts(j.charts, j.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) {
+          try {
+            next = JSON.parse(raw.textContent || '{}');
+          } catch (_) {}
+        }
+        buildCharts(next);
+        applyChartHints(next);
+      }
+
+      const txt = String(j.text || '').trim();
+      if (txt) {
+        st.classList.remove('ai-status-err');
+        renderMarkdown(j.text);
+      } else {
+        const out = document.getElementById('ai-output');
+        if (out) {
+          out.classList.add('ai-markdown-empty');
+          out.innerHTML =
+            '<p class="ai-output-placeholder">Модель вернула пустой текст. Проверьте ключи Gemini/Groq, квоту и логи сервера.</p>';
+        }
+        st.textContent += ' Пустой ответ модели.';
+        st.classList.remove('ai-status-ok');
+        st.classList.add('ai-status-err');
+      }
       if (j.historyChart) {
         buildHistoryChart(j.historyChart);
         mergeBootstrapHistory(j.historyChart, j.historyCount);
@@ -512,6 +585,7 @@
       payload = JSON.parse(raw.textContent || '{}');
     } catch (_) {}
     buildCharts(payload);
+    applyChartHints(payload);
     if (payload.historyChart && payload.historyChart.labels && payload.historyChart.labels.length) {
       buildHistoryChart(payload.historyChart);
     } else {

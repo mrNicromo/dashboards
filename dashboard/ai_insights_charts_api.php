@@ -48,4 +48,5 @@ $charts = AiInsightsContext::chartPayload($dir, $baseId);
 echo json_encode([
     'ok' => true,
     'charts' => $charts,
+    'chartHints' => AiInsightsContext::chartHintsFromCharts($charts),
 ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);

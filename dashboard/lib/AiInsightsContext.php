@@ -6,9 +6,9 @@ declare(strict_types=1);
  */
 final class AiInsightsContext
 {
-    private const MAX_CLIENTS_CHURN = 22;
-    private const MAX_TOP_LEGAL = 18;
-    private const MAX_ROWS_SAMPLE = 24;
+    private const MAX_CLIENTS_CHURN = 30;
+    private const MAX_TOP_LEGAL = 22;
+    private const MAX_ROWS_SAMPLE = 36;
     private const MAX_COMMENT_LEN = 140;
 
     public static function cacheDir(): string
@@ -28,7 +28,7 @@ final class AiInsightsContext
         $agingLabels = ['0–30', '31–60', '61–90', '90+'];
         $agingVals = [];
         foreach ($agingLabels as $k) {
-            $agingVals[] = round((float) ($aging[$k] ?? 0));
+            $agingVals[] = round(self::agingBucketAmount($aging, $k));
         }
 
         $segLabels = [];
@@ -90,6 +90,75 @@ final class AiInsightsContext
         return $sumAging < 1.0 && $sumSeg < 1.0 && $sumMgr < 1.0 && !$hasMonthly;
     }
 
+    /**
+     * ДЗ-графики пустые (aging + менеджеры), при этом Churn/потери могут быть из кэша — нужна догрузка ДЗ.
+     */
+    public static function chartPayloadDzDepleted(array $charts): bool
+    {
+        $sumAging = 0.0;
+        foreach ($charts['dzAging']['values'] ?? [] as $v) {
+            $sumAging += abs((float) $v);
+        }
+        $sumMgr = 0.0;
+        foreach ($charts['dzByManager']['values'] ?? [] as $v) {
+            $sumMgr += abs((float) $v);
+        }
+
+        return $sumAging < 1.0 && $sumMgr < 1.0;
+    }
+
+    /**
+     * Сумма в корзине aging: учитывает разные варианты тире в ключах JSON (en dash / hyphen).
+     *
+     * @param array<string, mixed> $aging
+     */
+    private static function agingBucketAmount(array $aging, string $canonicalKey): float
+    {
+        $try = [$canonicalKey, str_replace('–', '-', $canonicalKey), str_replace('–', '—', $canonicalKey)];
+        foreach ($try as $k) {
+            if (array_key_exists($k, $aging)) {
+                return (float) $aging[$k];
+            }
+        }
+        $norm = self::normalizeAgingKey($canonicalKey);
+        foreach ($aging as $k => $v) {
+            if (is_string($k) && self::normalizeAgingKey($k) === $norm) {
+                return (float) $v;
+            }
+        }
+
+        return 0.0;
+    }
+
+    private static function normalizeAgingKey(string $k): string
+    {
+        $k = str_replace(['–', '—', '−'], '-', $k);
+
+        return mb_strtolower(trim($k));
+    }
+
+    /**
+     * Подписи под графиками ДЗ при пустых данных.
+     *
+     * @return array{aging: string, managers: string}
+     */
+    public static function chartHintsFromCharts(array $charts): array
+    {
+        $sumA = 0.0;
+        foreach ($charts['dzAging']['values'] ?? [] as $v) {
+            $sumA += abs((float) $v);
+        }
+
+        return [
+            'aging' => $sumA < 1.0
+                ? 'В корзинах нет сумм — кэш дебиторки пустой или не обновлён. Откройте «ДЗ» или дождитесь фоновой синхронизации.'
+                : '',
+            'managers' => empty($charts['dzByManager']['labels'])
+                ? 'Нет разбивки по менеджерам: в данных нет заполненного «Аккаунт менеджер» по счетам или кэш ДЗ не подтянут.'
+                : '',
+        ];
+    }
+
     /** JSON-строка для промпта (ограниченный размер). */
     public static function promptContext(string $dir, string $airtableBaseId): string
     {
@@ -98,7 +167,7 @@ final class AiInsightsContext
         if (!is_string($json)) {
             return '{}';
         }
-        if (strlen($json) > 220000) {
+        if (strlen($json) > 280000) {
             $bundle['note'] = 'Данные усечены по размеру.';
             $bundle['churn']['clients'] = array_slice($bundle['churn']['clients'] ?? [], 0, 12);
             $bundle['dz']['topLegal'] = array_slice($bundle['dz']['topLegal'] ?? [], 0, 8);

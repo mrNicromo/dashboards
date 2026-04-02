@@ -13,13 +13,18 @@ $chartLoadError = '';
 
 $charts = AiInsightsContext::chartPayload($dir, $baseId);
 $patOk = trim((string) ($c['airtable_pat'] ?? '')) !== '';
-$chartsNeedAsyncRefresh = $patOk && AiInsightsContext::chartPayloadLooksEmpty($charts);
+$chartsNeedAsyncRefresh = $patOk && (
+    AiInsightsContext::chartPayloadLooksEmpty($charts)
+    || AiInsightsContext::chartPayloadDzDepleted($charts)
+);
 $geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
 $groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
 $keyConfigured = $geminiConfigured || $groqConfigured;
 $historyChart = AiInsightsHistory::chartSeries(56);
 $hist = AiInsightsHistory::load();
 $historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
+$chartHints = AiInsightsContext::chartHintsFromCharts($charts);
+
 $bootstrapJson = json_encode(
     [
         'charts' => $charts,
@@ -27,6 +32,7 @@ $bootstrapJson = json_encode(
         'historyCount' => $historyCount,
         'hasAiKey' => $keyConfigured,
         'chartsNeedAsyncRefresh' => $chartsNeedAsyncRefresh,
+        'chartHints' => $chartHints,
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
@@ -40,7 +46,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=3">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=4">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -93,6 +99,7 @@ $bootstrapJson = json_encode(
         <h2>ДЗ: просрочка по корзинам</h2>
         <p class="ai-card-hint">Снимок дебиторки из Airtable (счета)</p>
         <div class="ai-canvas-wrap"><canvas id="chart-aging" aria-label="График просрочки по корзинам"></canvas></div>
+        <p class="ai-chart-foot" id="ai-hint-aging" <?= $chartHints['aging'] !== '' ? '' : 'hidden' ?>><?= htmlspecialchars($chartHints['aging'], ENT_QUOTES, 'UTF-8') ?></p>
       </section>
       <section class="ai-card">
         <h2>Churn: MRR по сегментам</h2>
@@ -103,6 +110,7 @@ $bootstrapJson = json_encode(
         <h2>ДЗ: топ менеджеров по сумме</h2>
         <p class="ai-card-hint">Агрегат по менеджеру в счетах (Airtable)</p>
         <div class="ai-canvas-wrap"><canvas id="chart-managers" aria-label="График по менеджерам"></canvas></div>
+        <p class="ai-chart-foot" id="ai-hint-managers" <?= $chartHints['managers'] !== '' ? '' : 'hidden' ?>><?= htmlspecialchars($chartHints['managers'], ENT_QUOTES, 'UTF-8') ?></p>
       </section>
       <section class="ai-card ai-card-wide" id="ai-card-monthly-wrap" hidden>
         <h2>Потери: churn + downsell по месяцам</h2>
@@ -119,7 +127,7 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — синхронизация с Airtable и отчётами (если кэш не свежий — полное обновление; иначе можно ускорить повторный запрос), затем контекст + история снимков → Gemini или Groq. «Записать снимок» — сохранить текущие метрики в историю тренда без AI.</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — полная синхронизация с Airtable перед запросом к модели, затем развёрнутый текст (KPI, зоны внимания, приоритеты, прогноз). «Записать снимок» — только метрики в историю тренда без AI.</p>
       <div class="ai-markdown ai-markdown-empty" id="ai-output">
         <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
       </div>
@@ -130,7 +138,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=5" defer></script>
+  <script src="assets/ai_insights.js?v=6" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
