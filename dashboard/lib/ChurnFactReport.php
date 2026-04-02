@@ -370,6 +370,10 @@ final class ChurnFactReport
     public static array $lastDsHeaders = [];
     /** Счётчики фильтрации — для отладки */
     public static array $lastDsDebug   = [];
+    /** Примеры значений полей даты / месяца (отладка сопоставления с Airtable) */
+    public static array $lastDateSamples = [];
+    /** Имена полей из вьюх Recent Churn (отладка Meta) */
+    public static array $lastChurnFields = [];
 
     private static function fetchDownsellRows(): array
     {
