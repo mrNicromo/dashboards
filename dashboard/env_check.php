@@ -5,8 +5,9 @@ require_once __DIR__ . '/bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$pat = dashboard_env('AIRTABLE_PAT');
-$base = dashboard_env('AIRTABLE_BASE_ID');
+$c = dashboard_config();
+$pat = (string) ($c['airtable_pat'] ?? '');
+$base = (string) ($c['airtable_base_id'] ?? '');
 
 echo json_encode([
     'ok' => true,

@@ -166,55 +166,94 @@ function dashboard_env(string $name): string
 }
 
 /**
+ * Встроенные значения, если нет переменных окружения и пустой/отсутствует config.php.
+ * Меняйте здесь при смене ключей/таблиц.
+ *
+ * @return array<string, string>
+ */
+function dashboard_config_builtin(): array
+{
+    return [
+        'airtable_pat' => 'patwrU0X43xOzIDT5.d3c4c23c581f8d8df72989c1bd1ef7a2d77e1d45b1e87404f57cad22cfffdcde',
+        'airtable_base_id' => 'appEAS1rPKpevoIel',
+        'airtable_dz_table_id' => 'tblLEQYWypaYtAcp6',
+        'airtable_dz_view_id' => 'viw977k6GUNrkeRRy',
+        'airtable_cs_table_id' => 'tblIKAi1gcFayRJTn',
+        'airtable_churn_table_id' => 'tblIKAi1gcFayRJTn',
+        'airtable_cs_view_id' => 'viwz7G1vPxxg0WvC3',
+        'airtable_churn_view_id' => 'viwBPiUGNh0PMLeV1',
+        'airtable_extra_source_table_ids' => '',
+        'airtable_paid_view_id' => 'viwNp3aOtWxmQuKp5',
+        'auth_enabled' => '1',
+        'auth_username' => 'admin',
+        'auth_password' => '',
+        'auth_password_hash' => '',
+        'api_secret' => 'dummy_api_secret_64_chars_replace_later_0123456789abcdef0123456789ab',
+        'gemini_api_key' => 'AIzaSyDemoGeminiKey_ReplacedLater_0123456789abcd',
+        'groq_api_key' => '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',
+    ];
+}
+
+/**
+ * Приоритет: переменная окружения → непустое из config.php → встроенное (dashboard_config_builtin).
+ */
+function dashboard_config_pick(string $envName, array $merged, array $builtin, string $configKey): string
+{
+    $e = dashboard_env($envName);
+    if ($e !== '') {
+        return $e;
+    }
+    if (array_key_exists($configKey, $merged)) {
+        $m = $merged[$configKey];
+        if ($m !== null && $m !== '') {
+            return trim((string) $m);
+        }
+    }
+
+    return trim((string) ($builtin[$configKey] ?? ''));
+}
+
+/**
  * @return array{airtable_pat: string, airtable_base_id: string, airtable_dz_table_id: string, airtable_dz_view_id: string, airtable_cs_table_id: string, airtable_churn_table_id: string, airtable_cs_view_id: string, airtable_churn_view_id: string, airtable_extra_source_table_ids: string, airtable_paid_view_id: string, auth_enabled: string|int|bool, auth_username: string, auth_password: string, auth_password_hash: string}
  */
 function dashboard_config(): array
 {
-    $defaults = [
-        'airtable_pat' => '',
-        'airtable_base_id' => 'appEAS1rPKpevoIel',
-        'airtable_dz_table_id' => '',
-        'airtable_dz_view_id' => '',
-        'airtable_cs_table_id' => '',
-        'airtable_churn_table_id' => '',
-        'airtable_cs_view_id' => '',
-        'airtable_churn_view_id' => '',
-        'airtable_extra_source_table_ids' => '',
-        'airtable_paid_view_id' => '',
-        'auth_enabled' => '',
-        'auth_username' => '',
-        'auth_password' => '',
-        'auth_password_hash' => '',
-        'api_secret' => '',
-        'gemini_api_key' => '',
-        'groq_api_key' => '',
-    ];
+    $builtin = dashboard_config_builtin();
+    $defaults = array_fill_keys(array_keys($builtin), '');
+
     $path = __DIR__ . '/config.php';
     $fromFile = (is_readable($path)) ? require $path : [];
     if (!is_array($fromFile)) {
         $fromFile = [];
     }
     $merged = array_merge($defaults, $fromFile);
-    $pat = dashboard_env('AIRTABLE_PAT') ?: ($merged['airtable_pat'] ?? '');
-    $base = dashboard_env('AIRTABLE_BASE_ID') ?: ($merged['airtable_base_id'] ?? $defaults['airtable_base_id']);
-    $dzTable = dashboard_env('AIRTABLE_DZ_TABLE_ID') ?: ($merged['airtable_dz_table_id'] ?? '');
-    $dzView = dashboard_env('AIRTABLE_DZ_VIEW_ID') ?: ($merged['airtable_dz_view_id'] ?? '');
-    $csTable = dashboard_env('AIRTABLE_CS_TABLE_ID') ?: ($merged['airtable_cs_table_id'] ?? '');
-    $churnTable = dashboard_env('AIRTABLE_CHURN_TABLE_ID') ?: ($merged['airtable_churn_table_id'] ?? '');
-    $csView = dashboard_env('AIRTABLE_CS_VIEW_ID') ?: ($merged['airtable_cs_view_id'] ?? '');
-    $churnView = dashboard_env('AIRTABLE_CHURN_VIEW_ID') ?: ($merged['airtable_churn_view_id'] ?? '');
-    $extraSource = dashboard_env('AIRTABLE_EXTRA_SOURCE_TABLE_IDS') ?: ($merged['airtable_extra_source_table_ids'] ?? '');
-    $paidView = dashboard_env('AIRTABLE_PAID_VIEW_ID') ?: ($merged['airtable_paid_view_id'] ?? '');
+
+    $pat = dashboard_config_pick('AIRTABLE_PAT', $merged, $builtin, 'airtable_pat');
+    $base = dashboard_config_pick('AIRTABLE_BASE_ID', $merged, $builtin, 'airtable_base_id');
+    $dzTable = dashboard_config_pick('AIRTABLE_DZ_TABLE_ID', $merged, $builtin, 'airtable_dz_table_id');
+    $dzView = dashboard_config_pick('AIRTABLE_DZ_VIEW_ID', $merged, $builtin, 'airtable_dz_view_id');
+    $csTable = dashboard_config_pick('AIRTABLE_CS_TABLE_ID', $merged, $builtin, 'airtable_cs_table_id');
+    $churnTable = dashboard_config_pick('AIRTABLE_CHURN_TABLE_ID', $merged, $builtin, 'airtable_churn_table_id');
+    $csView = dashboard_config_pick('AIRTABLE_CS_VIEW_ID', $merged, $builtin, 'airtable_cs_view_id');
+    $churnView = dashboard_config_pick('AIRTABLE_CHURN_VIEW_ID', $merged, $builtin, 'airtable_churn_view_id');
+    $extraSource = dashboard_config_pick('AIRTABLE_EXTRA_SOURCE_TABLE_IDS', $merged, $builtin, 'airtable_extra_source_table_ids');
+    $paidView = dashboard_config_pick('AIRTABLE_PAID_VIEW_ID', $merged, $builtin, 'airtable_paid_view_id');
+    $authUser = dashboard_config_pick('DASHBOARD_AUTH_USERNAME', $merged, $builtin, 'auth_username');
+    $authPass = dashboard_config_pick('DASHBOARD_AUTH_PASSWORD', $merged, $builtin, 'auth_password');
+    $authPassHash = dashboard_config_pick('DASHBOARD_AUTH_PASSWORD_HASH', $merged, $builtin, 'auth_password_hash');
+    $apiSecret = dashboard_config_pick('DASHBOARD_API_SECRET', $merged, $builtin, 'api_secret');
+    $geminiKey = dashboard_config_pick('DASHBOARD_GEMINI_API_KEY', $merged, $builtin, 'gemini_api_key');
+    $groqKey = dashboard_config_pick('DASHBOARD_GROQ_API_KEY', $merged, $builtin, 'groq_api_key');
+
     $authEnabled = dashboard_env('DASHBOARD_AUTH_ENABLED');
     if ($authEnabled === '') {
-        $authEnabled = $merged['auth_enabled'] ?? '';
+        $m = $merged['auth_enabled'] ?? null;
+        if ($m === null || $m === '') {
+            $authEnabled = $builtin['auth_enabled'];
+        } else {
+            $authEnabled = $m;
+        }
     }
-    $authUser = dashboard_env('DASHBOARD_AUTH_USERNAME') ?: ($merged['auth_username'] ?? '');
-    $authPass = dashboard_env('DASHBOARD_AUTH_PASSWORD') ?: ($merged['auth_password'] ?? '');
-    $authPassHash = dashboard_env('DASHBOARD_AUTH_PASSWORD_HASH') ?: ($merged['auth_password_hash'] ?? '');
-    $apiSecret    = dashboard_env('DASHBOARD_API_SECRET') ?: ($merged['api_secret'] ?? '');
-    $geminiKey    = dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($merged['gemini_api_key'] ?? '');
-    $groqKey      = dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($merged['groq_api_key'] ?? '');
 
     return [
         'airtable_pat' => trim((string) $pat),
