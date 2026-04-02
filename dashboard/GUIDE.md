@@ -274,6 +274,8 @@ $env:AIRTABLE_BASE_ID="appEAS1rPKpevoIel"
 php -S localhost:8080
 ```
 
+Выкладка на хостинг (корень `dashboard/`, секреты, cron, Nginx): **[DEPLOY.md](DEPLOY.md)**. Пример переменных окружения — **`.env.example`** в корне репозитория.
+
 ---
 
 ## 5. Структура дашбордов

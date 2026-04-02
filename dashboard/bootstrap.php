@@ -2,6 +2,15 @@
 declare(strict_types=1);
 
 // ── Session + CSRF (M6) ────────────────────────────────────
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    if ($https) {
+        ini_set('session.cookie_secure', '1');
+    }
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.use_strict_mode', '1');
+}
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -48,6 +57,41 @@ function dashboard_api_secret(): string
 }
 
 /**
+ * Запрос с валидным общим секретом (Bearer / X-Api-Key / api_secret).
+ * Используется для cron и сервер-сервер без браузерной сессии.
+ */
+function dashboard_request_has_valid_api_secret(): bool
+{
+    $secret = dashboard_api_secret();
+    if ($secret === '') {
+        return false;
+    }
+    $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    if ($auth !== '' && preg_match('/Bearer\s+(\S+)/i', $auth, $m)) {
+        if (hash_equals($secret, $m[1])) {
+            return true;
+        }
+    }
+    $key = (string) ($_SERVER['HTTP_X_API_KEY'] ?? '');
+    if ($key !== '' && hash_equals($secret, $key)) {
+        return true;
+    }
+    $fromReq = (string) ($_GET['api_secret'] ?? $_POST['api_secret'] ?? '');
+    if ($fromReq !== '' && hash_equals($secret, $fromReq)) {
+        return true;
+    }
+    return false;
+}
+
+/** Текущий PHP-скрипт — JSON API (api.php, *_api.php), не HTML-страница. */
+function dashboard_auth_is_api_script(): bool
+{
+    $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+
+    return $script === 'api.php' || str_ends_with($script, '_api.php');
+}
+
+/**
  * Как csrf_check(), но допускает запрос с общим секретом (если он настроен):
  * - заголовок Authorization: Bearer &lt;secret&gt;
  * - заголовок X-Api-Key: &lt;secret&gt;
@@ -57,22 +101,8 @@ function dashboard_api_secret(): string
  */
 function csrf_check_or_api_secret(): void
 {
-    $secret = dashboard_api_secret();
-    if ($secret !== '') {
-        $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
-        if ($auth !== '' && preg_match('/Bearer\s+(\S+)/i', $auth, $m)) {
-            if (hash_equals($secret, $m[1])) {
-                return;
-            }
-        }
-        $key = (string) ($_SERVER['HTTP_X_API_KEY'] ?? '');
-        if ($key !== '' && hash_equals($secret, $key)) {
-            return;
-        }
-        $fromReq = (string) ($_GET['api_secret'] ?? $_POST['api_secret'] ?? '');
-        if ($fromReq !== '' && hash_equals($secret, $fromReq)) {
-            return;
-        }
+    if (dashboard_request_has_valid_api_secret()) {
+        return;
     }
     csrf_check();
 }
@@ -268,6 +298,11 @@ function dashboard_auth_require_login(): void
         header('Content-Type: text/plain; charset=utf-8');
         echo "Авторизация включена, но не настроены auth_username + auth_password(_hash) в config.php или DASHBOARD_AUTH_* в окружении.";
         exit;
+    }
+
+    /* Машинный доступ к JSON API при включённой веб-авторизации (cron, интеграции). */
+    if (dashboard_auth_is_api_script() && dashboard_request_has_valid_api_secret()) {
+        return;
     }
 
     if (dashboard_auth_is_logged_in()) {

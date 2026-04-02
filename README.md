@@ -4,6 +4,8 @@
 
 **Полная документация:** [dashboard/GUIDE.md](dashboard/GUIDE.md)
 
+**Продакшен и деплой:** [dashboard/DEPLOY.md](dashboard/DEPLOY.md)
+
 ### Самый короткий путь (macOS)
 
 1. Положите папку проекта куда удобно (например `~/Desktop/airtable`).

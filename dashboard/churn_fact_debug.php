@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
+
+if (dashboard_env('DASHBOARD_DISABLE_DEBUG') === '1') {
+    http_response_code(404);
+    exit;
+}
+
 header('Content-Type: text/html; charset=utf-8');
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }

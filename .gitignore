@@ -16,6 +16,9 @@ dashboard/.local-server.log
 dashboard/.server.log
 dashboard/.local-server.err.log
 
+# Cursor / IDE
+.cursor/
+
 # Local artifacts
 portable/
 _old/
