@@ -195,6 +195,8 @@ export AIRTABLE_PAT='pat_ВАШ_ТОКЕН'
 5. Вкладка **Settings** -> **Domains** -> **Generate Domain**.
 6. Открой `https://<your-domain>/index.php`.
 
+**Без лишних платежей:** не подключайте к проекту PostgreSQL — дашборд его не использует (данные в Airtable и в `dashboard/cache/`). Лишняя БД на Railway даёт отдельную подписку и ошибки вроде `max_client_conn`.
+
 Если используете пароль на уровне `index.php`, домен можно просто отдавать коллегам.
 
 ---

@@ -23,3 +23,6 @@ portable/
 _old/
 .claude/
 .DS_Store
+
+# Разовые выгрузки для tools (не в git)
+dashboard/tools/*.csv
