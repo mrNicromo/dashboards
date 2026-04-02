@@ -103,7 +103,7 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — JSON из кэша + история снимков → сначала Gemini (если задан ключ), при квоте/лимите — Groq; ответ и метрики дописываются в историю. «Записать снимок» — только метрики (для графика тренда).</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — перед вызовом AI подтягиваются свежие данные из Airtable (ДЗ, Churn) и пересчитываются отчёты; затем JSON + история снимков → Gemini или Groq. «Записать снимок» — только метрики из кэша (для графика тренда).</p>
       <div class="ai-markdown" id="ai-output" hidden></div>
     </section>
   </div>
@@ -112,7 +112,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=3" defer></script>
+  <script src="assets/ai_insights.js?v=4" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

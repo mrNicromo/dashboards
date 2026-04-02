@@ -163,7 +163,7 @@ final class AiInsightsContext
         $bundle['churn'] = array_merge($bundle['churn'], self::churnExtrasForAi($churn));
         $bundle['dz'] = array_merge($bundle['dz'], self::dzExtrasForAi($inner));
         $bundle['crossDashboard'] = self::loadCrossDashboardCaches($dir);
-        $bundle['source'] = 'Сводка по всем основным кэшам дашборда: ДЗ (dz-data-default), Churn (churn-report), потери YTD (churn-fact-report), плюс недельный тренд ДЗ, MRR, топ изменений долга по клиентам — те же файлы, что питают главную, ДЗ, Churn, «Потери», еженедельный отчёт.';
+        $bundle['source'] = 'Перед генерацией анализа данные синхронизируются с Airtable (ДЗ, Churn) и пересчитываются отчёты; потери YTD — из Google Sheets; еженедельные тренды/MRR — через отчёт руководителя (те же пайплайны, что главная, ДЗ, Churn, «Потери», «Неделя»). Ниже — актуальный снимок после этой синхронизации.';
 
         return $bundle;
     }
@@ -398,5 +398,66 @@ final class AiInsightsContext
             return explode('@', $email, 2)[0];
         }
         return mb_substr($email, 0, 18);
+    }
+
+    /**
+     * Перед вызовом LLM: актуальные данные из Airtable (дебиторка, churn-вьюхи),
+     * затем потери (Google Sheets + расчёт), затем отчёт руководителя (недели, MRR, тренды клиентов).
+     * Перезаписывает cache/dz-data-default.json, churn-report.json, churn-fact-report.json и вспомогательные файлы manager.
+     *
+     * @param array<string, mixed> $c Результат dashboard_config()
+     */
+    public static function refreshCachesFromAirtable(array $c): void
+    {
+        require_once __DIR__ . '/DzReport.php';
+        require_once __DIR__ . '/ChurnReport.php';
+        require_once __DIR__ . '/ChurnFactReport.php';
+        require_once __DIR__ . '/ManagerReport.php';
+
+        $pat = trim((string) ($c['airtable_pat'] ?? ''));
+        if ($pat === '') {
+            throw new \RuntimeException('Не задан AIRTABLE_PAT.');
+        }
+        $base = trim((string) ($c['airtable_base_id'] ?? ''));
+        if ($base === '') {
+            throw new \RuntimeException('Не задан AIRTABLE_BASE_ID.');
+        }
+
+        $cacheDir = self::cacheDir();
+        if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0775, true) && !is_dir($cacheDir)) {
+            throw new \RuntimeException('Не удалось создать каталог cache.');
+        }
+
+        $payload = DzReport::fetchPayload(
+            $pat,
+            $base,
+            (string) ($c['airtable_dz_table_id'] ?? ''),
+            (string) ($c['airtable_dz_view_id'] ?? ''),
+            (string) ($c['airtable_cs_table_id'] ?? ''),
+            (string) ($c['airtable_churn_table_id'] ?? ''),
+            '',
+            (string) ($c['airtable_cs_view_id'] ?? ''),
+            (string) ($c['airtable_churn_view_id'] ?? ''),
+            (string) ($c['airtable_paid_view_id'] ?? '')
+        );
+        $dzFile = $cacheDir . '/dz-data-default.json';
+        $toCache = ['ok' => true, 'schemaVersion' => 1, 'data' => $payload];
+        if (file_put_contents($dzFile, json_encode($toCache, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)) === false) {
+            throw new \RuntimeException('Не удалось записать dz-data-default.json.');
+        }
+
+        @unlink($cacheDir . '/churn-report.json');
+        $churnRisk = ChurnReport::fetchReport($pat, $base);
+
+        @unlink($cacheDir . '/churn-fact-report.json');
+        ChurnFactReport::fetchReport(
+            $pat,
+            $base,
+            (float) ($churnRisk['prob3mrr'] ?? 0),
+            (float) ($churnRisk['prob3riskEnt'] ?? 0),
+            (float) ($churnRisk['prob3riskSmb'] ?? 0)
+        );
+
+        ManagerReport::fetchReport($pat, $base);
     }
 }

@@ -378,7 +378,8 @@
         return;
       }
       const prov = j.provider ? ' · ' + j.provider : '';
-      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov;
+      const fresh = j.dataRefreshedFromAirtable ? ' Данные из Airtable обновлены перед анализом.' : '';
+      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov + fresh;
       st.classList.add('ai-status-ok');
       renderMarkdown(j.text || '');
       if (j.historyChart) {

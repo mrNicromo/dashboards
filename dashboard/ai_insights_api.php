@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+set_time_limit(0);
+
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/AiInsightsContext.php';
 require_once __DIR__ . '/lib/AiInsightsHistory.php';
@@ -29,6 +31,15 @@ if ($geminiKey === '' && $groqKey === '') {
     exit;
 }
 
+if (trim((string) ($c['airtable_pat'] ?? '')) === '') {
+    http_response_code(400);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Задайте AIRTABLE_PAT — перед анализом подтягиваются свежие данные из Airtable.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $dir = AiInsightsContext::cacheDir();
 if (!is_dir($dir)) {
     http_response_code(503);
@@ -36,11 +47,22 @@ if (!is_dir($dir)) {
     exit;
 }
 
+try {
+    AiInsightsContext::refreshCachesFromAirtable($c);
+} catch (Throwable $e) {
+    http_response_code(502);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $baseId = (string) ($c['airtable_base_id'] ?? '');
 $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
 
 $system = <<<'PROMPT'
-Ты — финансовый и операционный аналитик B2B SaaS. JSON — единый снимок по всем основным экранам дашборда (те же кэши, что и графики/таблицы): dz — дебиторка и корзины aging, менеджеры, статусы, топ юрлица и строки счетов; churn — риск MRR по сегментам/вертикалям/продуктам/CSM, клиенты, прогнозы; factLosses — фактические потери YTD (churn + downsell) с разбивкой по месяцам, продуктам, CSM, причинам, примерам строк; crossDashboard — недельная динамика ДЗ, снимок MRR, доп. корзины aging, топ клиентов по недельному изменению долга. Опирайся на все непустые разделы и согласуй выводы между ними (ДЗ ↔ churn ↔ потери ↔ тренды).
+Ты — финансовый и операционный аналитик B2B SaaS. JSON — единый снимок по всем основным экранам дашборда; перед этим запросом данные только что подтянуты из Airtable (и связанных источников отчётов), не устаревший кэш: dz — дебиторка и корзины aging, менеджеры, статусы, топ юрлица и строки счетов; churn — риск MRR по сегментам/вертикалям/продуктам/CSM, клиенты, прогнозы; factLosses — фактические потери YTD (churn + downsell) с разбивкой по месяцам, продуктам, CSM, причинам, примерам строк; crossDashboard — недельная динамика ДЗ, снимок MRR, доп. корзины aging, топ клиентов по недельному изменению долга. Опирайся на все непустые разделы и согласуй выводы между ними (ДЗ ↔ churn ↔ потери ↔ тренды).
 
 Если ниже есть блок «История сохранённых снимков», используй его для оценки тренда (рост/падение ключевых сумм). В конце ответа добавь короткий раздел «## Прогноз и риски» с осторожным сценарием на 1–3 месяца (явно укажи допущения и неопределённость; не выдавай точные числа без данных).
 
@@ -110,6 +132,7 @@ echo json_encode([
     'ok' => true,
     'text' => $text,
     'provider' => $provider,
+    'dataRefreshedFromAirtable' => true,
     'historyCount' => $histCount,
     'historyChart' => AiInsightsHistory::chartSeries(56),
 ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
