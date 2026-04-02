@@ -115,11 +115,11 @@ echo json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
 /**
- * Резерв при лимите/квоте Gemini (429, quota, resource exhausted и т.п.).
+ * Резерв при лимите/квоте Gemini, а также при неверном ключе / отказе доступа (тогда пробуем Groq).
  */
 function ai_insights_should_fallback_to_groq(string $errorMessage, int $httpCode): bool
 {
-    if ($httpCode === 429) {
+    if (in_array($httpCode, [401, 403, 429], true)) {
         return true;
     }
     $e = mb_strtolower($errorMessage);
@@ -127,6 +127,8 @@ function ai_insights_should_fallback_to_groq(string $errorMessage, int $httpCode
         'resource_exhausted', 'quota', 'rate limit', 'too many requests',
         'billing', 'limit exceeded', 'exceeded your', 'tokens', 'capacity',
         '429', '503', 'overloaded', 'try again later',
+        'api key not valid', 'invalid api key', 'api_key_invalid', 'invalid key',
+        'permission denied', 'request had invalid authentication',
     ];
     foreach ($needles as $n) {
         if (str_contains($e, $n)) {
