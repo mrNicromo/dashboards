@@ -25,7 +25,7 @@
     rateHint: '',
   };
 
-  var DASH_CSS_VER = '28';
+  var DASH_CSS_VER = '29';
   var AQ_MARK =
     '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2 12V4l6-2 6 2v8l-6 2-6-2zm6-9.2L4.5 4.3v7.4L8 13.2l3.5-1.5V4.3L8 2.8z"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>';
 
@@ -629,7 +629,8 @@
         var next = isLight ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', next);
         try {
-          localStorage.setItem('dz-theme', next === 'light' ? 'light' : '');
+          localStorage.setItem('aq_theme', next);
+          localStorage.removeItem('dz-theme');
         } catch (e1) {}
         render();
       });
@@ -865,7 +866,7 @@
       '<title>ДЗ — экспорт</title>\n<base href="' + esc(base) + '">\n' +
       '<link rel="stylesheet" href="assets/dashboard.css?v=' + DASH_CSS_VER + '">\n</head>\n<body>\n' +
       '<div id="app">' + inner + '</div>\n' +
-      '<script>try{var t=localStorage.getItem("dz-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");}catch(e){}<\/script>\n' +
+      '<script>(function(){var r=document.documentElement;var t=localStorage.getItem("aq_theme");if(t!=="light"&&t!=="dark"){t=localStorage.getItem("dz-theme")==="light"?"light":"dark";}r.setAttribute("data-theme",t||"dark");})();<\/script>\n' +
       '<script src="assets/dashboard.js?v=' + DASH_CSS_VER + '"><\/script>\n</body>\n</html>';
     var blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
     var a = document.createElement('a');

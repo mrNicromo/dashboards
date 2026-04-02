@@ -1501,8 +1501,8 @@ function handleManagerPlaceholderPage() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Дашборд руководителя (Node)</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <script>(function(){var t=localStorage.getItem('aq_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
   <div class="setup">
@@ -1522,8 +1522,8 @@ function handleWeeklyPlaceholderPage() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Еженедельный отчёт (Node)</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <script>(function(){var t=localStorage.getItem('aq_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
   <div class="setup">
@@ -1543,7 +1543,7 @@ function handleChurnPage(config) {
       type: "text/html; charset=utf-8",
       body: `<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8"><title>Угроза Churn</title>
-<link rel="stylesheet" href="assets/dashboard.css?v=14"></head>
+<link rel="stylesheet" href="assets/dashboard.css?v=16"></head>
 <body><div class="setup"><h1>Угроза Churn</h1>
 <p>Укажите токен в <code>config.php</code> или переменную окружения <code>AIRTABLE_PAT</code>.</p>
 </div></body></html>`,
@@ -1564,7 +1564,7 @@ function handleChurnPage(config) {
   </div>
   <script src="assets/utils.js?v=1" defer></script>
   <script src="assets/churn.js?v=6" defer></script>
-  <script src="assets/shared-nav.js?v=1" defer></script>`
+  <script src="assets/shared-nav.js?v=2" defer></script>`
     : `<div class="setup">
     <h1>Угроза Churn</h1>
     <p>Нет файла кэша <code>cache/churn-report.json</code>. Сгенерируйте его из среды с PHP или откройте <a href="index.php">главный дашборд</a>.</p>
@@ -1578,14 +1578,9 @@ function handleChurnPage(config) {
   <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="">
   <title>Угроза Churn — AnyQuery</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/churn.css?v=9">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/churn.css?v=10">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
 ${inner}
@@ -1601,7 +1596,7 @@ function handleChurnFactPage(config) {
       type: "text/html; charset=utf-8",
       body: `<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8"><title>Потери выручки</title>
-<link rel="stylesheet" href="assets/dashboard.css?v=14"></head>
+<link rel="stylesheet" href="assets/dashboard.css?v=16"></head>
 <body><div class="setup"><h1>Потери выручки</h1>
 <p>Укажите токен в <code>config.php</code> или <code>AIRTABLE_PAT</code>.</p>
 </div></body></html>`,
@@ -1627,7 +1622,7 @@ function handleChurnFactPage(config) {
   </div>
   <script src="assets/utils.js?v=1" defer></script>
   <script src="assets/churn_fact.js?v=15" defer></script>
-  <script src="assets/shared-nav.js?v=1" defer></script>`
+  <script src="assets/shared-nav.js?v=2" defer></script>`
     : `<div class="setup">
     <h1>Потери выручки</h1>
     <p>Нет кэша <code>cache/churn-fact-report.json</code>. Нужен предварительный запуск с PHP или откройте <a href="index.php">главный дашборд</a>.</p>
@@ -1641,14 +1636,9 @@ function handleChurnFactPage(config) {
   <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="">
   <title>Потери выручки — AnyQuery</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/churn_fact.css?v=10">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/churn_fact.css?v=11">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
 ${inner}
@@ -1677,18 +1667,18 @@ async function handleIndex(config, searchParams) {
     payload.snapshots = listSnapshots();
     const bootstrapJson = JSON.stringify(payload).replace(/</g, "\\u003c");
     const html = `<!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" id="html-root">
 <head>
   <meta charset="utf-8">
-  <script>(function(){var t=localStorage.getItem("dz-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");})();</script>
+  <script src="assets/aq-theme-boot.js?v=1"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ДЗ — дашборд</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=28">
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
 </head>
 <body>
   <script type="application/json" id="dz-bootstrap">${bootstrapJson}</script>
   <div id="app"></div>
-  <script src="assets/dashboard.js?v=28" defer></script>
+  <script src="assets/dashboard.js?v=29" defer></script>
 </body>
 </html>`;
     return { status: 200, type: "text/html; charset=utf-8", body: html };

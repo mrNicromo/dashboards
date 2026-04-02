@@ -46,16 +46,11 @@ if (is_readable($factCache)) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
   <title>Анализ дебиторской задолженности</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=15">
-  <link rel="stylesheet" href="assets/manager.css?v=6">
-  <script>
-    // Применяем тему до рендера — без мигания
-    (function(){
-      var t = localStorage.getItem('aq_theme') || 'dark';
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/manager.css?v=7">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
 <?php if (!$hasPat): ?>
@@ -73,7 +68,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
   <script src="assets/manager.js?v=7" defer></script>
-  <script src="assets/shared-nav.js?v=1" defer></script>
+  <script src="assets/shared-nav.js?v=2" defer></script>
 <?php endif; ?>
 </body>
 </html>

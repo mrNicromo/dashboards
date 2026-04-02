@@ -26,14 +26,9 @@ if ($hasPat) {
   <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Угроза Churn — AnyQuery</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/churn.css?v=9">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/churn.css?v=10">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
 <?php if (!$hasPat): /* PAT не настроен */ ?>
@@ -58,7 +53,7 @@ if ($hasPat) {
   </div>
   <script src="assets/utils.js?v=1" defer></script>
   <script src="assets/churn.js?v=6" defer></script>
-  <script src="assets/shared-nav.js?v=1" defer></script>
+  <script src="assets/shared-nav.js?v=2" defer></script>
 <?php endif; ?>
 </body>
 </html>

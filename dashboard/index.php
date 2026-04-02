@@ -50,15 +50,11 @@ function fmtR(float $v): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>AnyQuery — Дашборды</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || 'dark';
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
   <style>
     /* ── Hub ────────────────────────────── */
     :root,[data-theme="dark"]{
@@ -67,8 +63,8 @@ function fmtR(float $v): string {
       --hub-accent:#7B61FF;--hub-danger:#FF453A;--hub-warn:#FF9F0A;--hub-ok:#34C759;
     }
     [data-theme="light"]{
-      --hub-bg:#f4f4f8;--hub-surface:#fff;--hub-card:#f9f9fc;
-      --hub-border:rgba(0,0,0,.09);--hub-text:#1a1a2e;--hub-muted:#666;
+      --hub-bg:#e2e5ec;--hub-surface:#e8ebf2;--hub-card:#eef1f7;
+      --hub-border:rgba(51,65,85,.14);--hub-text:#1e293b;--hub-muted:#64748b;
       --hub-accent:#6B51EF;--hub-danger:#E3342F;--hub-warn:#E07B09;--hub-ok:#27AE60;
     }
     *{box-sizing:border-box;margin:0;padding:0}
@@ -203,7 +199,7 @@ function fmtR(float $v): string {
     <a class="hub-nav-tab" href="churn_fact.php">📉 Потери</a>
     <a class="hub-nav-tab" href="manager.php">💰 ДЗ</a>
   </nav>
-  <button class="btn-icon" id="btn-theme" title="Сменить тему">🌙</button>
+  <button class="btn-icon" id="btn-theme" title="Светлая тема" aria-label="Переключить тему">☀️</button>
 </div>
 
 <div class="hub-hero">
@@ -529,21 +525,28 @@ function fmtR(float $v): string {
     });
   })();
 
-  // Theme toggle
+  // Theme toggle (иконка = действие: в тёмной теме — солнце → перейти в светлую)
   document.getElementById('btn-theme')?.addEventListener('click', function() {
     var root = document.getElementById('html-root');
     var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
     localStorage.setItem('aq_theme', next);
-    this.textContent = next === 'dark' ? '🌙' : '☀️';
+    try { localStorage.removeItem('dz-theme'); } catch (e) {}
+    var dark = next === 'dark';
+    this.textContent = dark ? '☀️' : '🌙';
+    this.title = dark ? 'Светлая тема' : 'Тёмная тема';
+    this.setAttribute('aria-label', dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
   });
-  // Set correct icon on load
   (function(){
     var t = document.getElementById('html-root').getAttribute('data-theme');
     var btn = document.getElementById('btn-theme');
-    if (btn) btn.textContent = t === 'dark' ? '🌙' : '☀️';
+    if (!btn) return;
+    var dark = t === 'dark';
+    btn.textContent = dark ? '☀️' : '🌙';
+    btn.title = dark ? 'Светлая тема' : 'Тёмная тема';
+    btn.setAttribute('aria-label', dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
   })();
 </script>
-<script src="assets/shared-nav.js?v=1" defer></script>
+<script src="assets/shared-nav.js?v=2" defer></script>
 </body>
 </html>
