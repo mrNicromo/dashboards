@@ -13,7 +13,7 @@ $isWindows = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
 $action    = $_REQUEST['action'] ?? $_GET['action'] ?? 'status';
 
 if (in_array($action, ['install', 'remove'], true)) {
-    csrf_check();
+    csrf_check_or_api_secret();
 }
 
 $launcherWin = str_replace('/', DIRECTORY_SEPARATOR, realpath(__DIR__ . '/../LAUNCH.bat')  ?: '');

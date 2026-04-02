@@ -89,13 +89,12 @@ final class Airtable
         $body = @file_get_contents($url, false, $ctx);
         if ($body === false) throw new RuntimeException('file_get_contents failed');
         $code = 200;
+        // PHP 8.4+: http_get_last_response_headers(); не использовать $http_response_header (deprecated)
         if (function_exists('http_get_last_response_headers')) {
             $rh = http_get_last_response_headers();
             if (is_array($rh) && $rh !== [] && preg_match('/HTTP\/\S+\s+(\d+)/', (string) $rh[0], $m)) {
-                $code = (int)$m[1];
+                $code = (int) $m[1];
             }
-        } elseif (!empty($http_response_header[0]) && preg_match('/HTTP\/\S+\s+(\d+)/', $http_response_header[0], $m)) {
-            $code = (int)$m[1];
         }
         if ($code >= 400) {
             $d = json_decode($body, true);
