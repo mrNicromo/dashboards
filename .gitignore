@@ -1,8 +1,7 @@
-# Secrets
+# Secrets: в репо — только шаблон .env; реальные ключи — в .env.local (не коммитить)
 dashboard/config.php
 dashboard/.merchrules_cookie
 dashboard/tools/.merchrules_cookie
-.env
 .env.*
 !.env.example
 
