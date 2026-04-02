@@ -21,16 +21,18 @@ csrf_check();
 
 $bodyIn = json_decode(file_get_contents('php://input') ?: '{}', true);
 $skipRefresh = is_array($bodyIn) && !empty($bodyIn['skipRefresh']);
+$customQuestion = is_array($bodyIn) ? trim((string) ($bodyIn['customQuestion'] ?? '')) : '';
 
 $c = dashboard_config();
 $geminiKey = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
 $groqKey = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? '')));
+$anthropicKey = trim((string) (dashboard_env('DASHBOARD_ANTHROPIC_API_KEY') ?: ($c['anthropic_api_key'] ?? '')));
 
-if ($geminiKey === '' && $groqKey === '') {
+if ($geminiKey === '' && $groqKey === '' && $anthropicKey === '') {
     http_response_code(400);
     echo json_encode([
         'ok' => false,
-        'error' => 'Нужен хотя бы один ключ: DASHBOARD_GEMINI_API_KEY (Gemini) и/или DASHBOARD_GROQ_API_KEY (резерв Groq). См. config.php.',
+        'error' => 'Нужен хотя бы один ключ: DASHBOARD_GEMINI_API_KEY (Gemini), DASHBOARD_GROQ_API_KEY (Groq) или DASHBOARD_ANTHROPIC_API_KEY (Claude). См. config.php.',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -130,7 +132,10 @@ PROMPT;
 
     $historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
     $liveNote = "\n\n(Служебно: этот JSON собран **сразу перед этим запросом** — сервер вызвал Airtable API и связанные отчёты (Sheets для потерь и т.д.), затем сформировал снимок. Это не «произвольное чтение старого кэша без запросов».)";
-    $user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote;
+    $customBlock = $customQuestion !== ''
+        ? "\n\n---\n### Дополнительный вопрос (приоритет — ответь на него явно в начале):\n" . $customQuestion
+        : '';
+    $user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote . $customBlock;
 
     $gen = null;
     $provider = null;
@@ -168,6 +173,17 @@ PROMPT;
             } else {
                 $lastErr = (string) ($gen['error'] ?? '');
             }
+        }
+    }
+
+    // Claude — третий резерв
+    if ($provider === null && $anthropicKey !== '') {
+        $gen = ai_insights_claude_generate($anthropicKey, $system, $user);
+        if ($gen['ok']) {
+            $provider = 'claude';
+            $llmModelId = (string) ($gen['modelId'] ?? 'claude-sonnet-4-6');
+        } else {
+            $lastErr = (string) ($gen['error'] ?? $lastErr);
         }
     }
 
@@ -213,6 +229,7 @@ PROMPT;
         'refreshSkipped' => $skipRefresh,
         'dataRefreshedFromAirtable' => $didRefresh || $skipRefresh,
         'usedRecentCache' => false,
+        'customQuestion' => $customQuestion,
         'numberWarnings' => $numberWarnings,
         'historyCount' => $histCount,
         'historyChart' => AiInsightsHistory::chartSeries(56),
@@ -326,7 +343,7 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
         return ['ok' => false, 'error' => 'Модель вернула пустой текст', 'httpCode' => $code];
     }
 
-    return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => $model];
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => 'gemini-2.0-flash'];
 }
 
 /**
@@ -382,6 +399,68 @@ function ai_insights_groq_generate(string $apiKey, string $systemInstruction, st
     $out = (string) ($j['choices'][0]['message']['content'] ?? '');
     if ($out === '') {
         return ['ok' => false, 'error' => 'Groq: пустой ответ', 'httpCode' => $code];
+    }
+
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => $model];
+}
+
+/**
+ * Claude (Anthropic) — через Messages API (sk-ant-…).
+ *
+ * @return array{ok:bool, text?: string, error?: string, httpCode?: int, modelId?: string}
+ */
+function ai_insights_claude_generate(string $apiKey, string $systemInstruction, string $userText): array
+{
+    $url = 'https://api.anthropic.com/v1/messages';
+    $model = 'claude-sonnet-4-6';
+
+    $payload = [
+        'model' => $model,
+        'max_tokens' => 8192,
+        'system' => $systemInstruction,
+        'messages' => [
+            ['role' => 'user', 'content' => $userText],
+        ],
+    ];
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => 'curl_init failed', 'httpCode' => 0];
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'x-api-key: ' . $apiKey,
+            'anthropic-version: 2023-06-01',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_CONNECTTIMEOUT => 15,
+    ]);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($raw === false) {
+        return ['ok' => false, 'error' => 'Сеть: запрос к Anthropic не выполнен', 'httpCode' => $code];
+    }
+    $j = json_decode($raw, true);
+    if (!is_array($j)) {
+        return ['ok' => false, 'error' => 'Некорректный ответ Anthropic (HTTP ' . $code . ')', 'httpCode' => $code];
+    }
+    if ($code >= 400) {
+        $msg = isset($j['error']['message']) ? (string) $j['error']['message'] : 'HTTP ' . $code;
+        return ['ok' => false, 'error' => 'Claude: ' . $msg, 'httpCode' => $code];
+    }
+    $out = '';
+    foreach ($j['content'] ?? [] as $block) {
+        if (($block['type'] ?? '') === 'text') {
+            $out .= (string) ($block['text'] ?? '');
+        }
+    }
+    if ($out === '') {
+        return ['ok' => false, 'error' => 'Claude: пустой ответ', 'httpCode' => $code];
     }
 
     return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => $model];

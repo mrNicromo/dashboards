@@ -31,6 +31,8 @@
   let historyChartInstance = null;
   /** Сырой markdown последнего успешного ответа (копирование/скачивание). */
   let lastMarkdownRaw = '';
+  /** Текущий стриминг — для отмены */
+  let activeStreamController = null;
 
   function destroyCharts() {
     chartInstances.forEach((c) => {
@@ -518,14 +520,180 @@
     afterRenderAdjustLayout(text);
   }
 
+  function getCustomQuestion() {
+    return (document.getElementById('ai-custom-question')?.value || '').trim();
+  }
+
+  function setGeneratingState(busy) {
+    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot'];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = busy;
+    });
+  }
+
+  /** Потоковая генерация через SSE */
+  async function generateStream() {
+    const st = document.getElementById('ai-status');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (!st) return;
+
+    if (activeStreamController) {
+      activeStreamController.abort();
+      activeStreamController = null;
+    }
+
+    setGeneratingState(true);
+    st.textContent = '1/2 Синхронизация с Airtable…';
+    st.className = 'ai-card-hint';
+    showOutputToolbar(false);
+    applyNumberWarnings([]);
+
+    const out = document.getElementById('ai-output');
+    if (out) {
+      out.classList.remove('ai-markdown-empty');
+      out.innerHTML = '<p class="ai-stream-cursor">▌</p>';
+    }
+
+    const controller = new AbortController();
+    activeStreamController = controller;
+
+    let streamText = '';
+    let done = false;
+
+    try {
+      const resp = await fetch('ai_insights_stream_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ customQuestion: getCustomQuestion() }),
+        signal: controller.signal,
+      });
+
+      if (!resp.ok || !resp.body) {
+        let errMsg = 'HTTP ' + resp.status;
+        try {
+          const j = await resp.json();
+          errMsg = j.error || errMsg;
+        } catch (_) {}
+        st.textContent = errMsg;
+        st.classList.add('ai-status-err');
+        if (out) {
+          out.classList.add('ai-markdown-empty');
+          out.innerHTML = '<p class="ai-output-placeholder">' + esc(errMsg) + '</p>';
+        }
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let currentEvent = '';
+
+      while (true) {
+        const { value, done: rdDone } = await reader.read();
+        if (rdDone) break;
+        buf += decoder.decode(value, { stream: true });
+
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.replace(/\r$/, '');
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            let data;
+            try {
+              data = JSON.parse(line.slice(6));
+            } catch (_) {
+              continue;
+            }
+            if (currentEvent === 'status') {
+              st.textContent = data.msg || '';
+            } else if (currentEvent === 'text') {
+              streamText += data.t || '';
+              if (out) {
+                out.innerHTML =
+                  (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined'
+                    ? DOMPurify.sanitize(marked.parse(streamText, { breaks: true }))
+                    : '<pre style="white-space:pre-wrap;margin:0">' + esc(streamText) + '</pre>') +
+                  '<span class="ai-stream-cursor">▌</span>';
+              }
+            } else if (currentEvent === 'error') {
+              st.textContent = data.error || 'Ошибка стриминга';
+              st.classList.add('ai-status-err');
+              if (out) {
+                out.classList.add('ai-markdown-empty');
+                out.innerHTML = '<p class="ai-output-placeholder">' + esc(data.error || '') + '</p>';
+              }
+              done = true;
+              break;
+            } else if (currentEvent === 'done') {
+              done = true;
+              // Финальный рендер без курсора
+              lastMarkdownRaw = streamText;
+              if (out) {
+                renderMarkdown(streamText);
+              }
+              applyNumberWarnings(data.numberWarnings || []);
+              persistLastAnalysis(streamText, {
+                promptVersion: data.promptVersion,
+                llmModel: data.llmModel,
+                provider: data.provider,
+              });
+              showOutputToolbar(true);
+              const rw = document.getElementById('ai-restore-wrap');
+              if (rw) rw.hidden = true;
+
+              const prov = data.provider || '';
+              const lm = data.llmModel ? ' · ' + data.llmModel : '';
+              const tm = data.llmMs != null ? ' · LLM ' + data.llmMs + ' ms' : '';
+              st.textContent =
+                'Готово (стриминг). В истории: ' +
+                (data.historyCount ?? '—') +
+                '. ' +
+                prov +
+                lm +
+                tm;
+              st.classList.add('ai-status-ok');
+              st.classList.remove('ai-status-err');
+
+              if (data.charts) {
+                mergeBootstrapCharts(data.charts, data.chartHints);
+                const raw = document.getElementById('ai-bootstrap');
+                let next = {};
+                if (raw) {
+                  try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {}
+                }
+                buildCharts(next);
+                applyChartHints(next);
+              }
+              if (data.historyChart) {
+                buildHistoryChart(data.historyChart);
+                mergeBootstrapHistory(data.historyChart, data.historyCount);
+              }
+            }
+          }
+        }
+        if (done) break;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
+      st.classList.add('ai-status-err');
+    } finally {
+      activeStreamController = null;
+      setGeneratingState(false);
+    }
+  }
+
   async function generate() {
     const btn = document.getElementById('btn-generate');
     const snap = document.getElementById('btn-snapshot');
     const st = document.getElementById('ai-status');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
-    btn.disabled = true;
-    if (snap) snap.disabled = true;
+    setGeneratingState(true);
     st.textContent = '1/2 Синхронизация с Airtable (API)…';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
@@ -578,7 +746,7 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({ skipRefresh: true }),
+        body: JSON.stringify({ skipRefresh: true, customQuestion: getCustomQuestion() }),
       });
       let j = {};
       try {
@@ -664,8 +832,7 @@
       st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
       st.classList.add('ai-status-err');
     } finally {
-      btn.disabled = false;
-      if (snap) snap.disabled = false;
+      setGeneratingState(false);
     }
   }
 
@@ -702,7 +869,7 @@
       st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
       st.classList.add('ai-status-err');
     } finally {
-      btn.disabled = false;
+      setGeneratingState(false);
     }
   }
 
@@ -723,7 +890,22 @@
     bindTheme();
 
     document.getElementById('btn-generate')?.addEventListener('click', generate);
+    document.getElementById('btn-generate-stream')?.addEventListener('click', generateStream);
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
+
+    // Custom question toggle
+    document.getElementById('btn-custom-question-toggle')?.addEventListener('click', () => {
+      const body = document.getElementById('ai-custom-question-body');
+      const btn = document.getElementById('btn-custom-question-toggle');
+      if (!body || !btn) return;
+      const open = !body.hidden;
+      body.hidden = open;
+      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      btn.textContent = open ? '＋ Добавить свой вопрос к данным' : '− Скрыть вопрос';
+    });
+
+    // Comparison UI
+    initCompareUi(payload);
 
     if (payload.chartsNeedAsyncRefresh) {
       refreshChartsFromApi(payload);
@@ -777,6 +959,116 @@
         }
       });
     }
+  }
+
+  function fmtRub(v) {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    if (isNaN(n)) return '—';
+    if (Math.abs(n) >= 1_000_000) return (Math.round(n / 100_000) / 10).toFixed(1) + 'M';
+    if (Math.abs(n) >= 1_000) return Math.round(n / 1000) + 'K';
+    return String(Math.round(n));
+  }
+
+  function fmtDelta(diff, pct) {
+    if (diff == null) return '—';
+    const sign = diff > 0 ? '+' : '';
+    const pctStr = pct != null ? ' (' + (pct > 0 ? '+' : '') + pct + '%)' : '';
+    return sign + fmtRub(diff) + pctStr;
+  }
+
+  function buildCompareSelect(selectEl, items) {
+    selectEl.innerHTML = '';
+    items.forEach((item, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      const t = item.t ? item.t.replace('T', ' ').replace('Z', ' UTC').slice(0, 19) : '—';
+      const dz = item.m?.dzTotal != null ? ' ДЗ ' + fmtRub(item.m.dzTotal) : '';
+      const mark = item.hasAnalysis ? ' ✦' : '';
+      opt.textContent = t + dz + mark;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function initCompareUi(payload) {
+    const items = payload.historyMeta || [];
+    if (items.length < 2) return;
+    const section = document.getElementById('ai-compare-section');
+    if (section) section.hidden = false;
+    const selA = document.getElementById('ai-compare-a');
+    const selB = document.getElementById('ai-compare-b');
+    if (!selA || !selB) return;
+    buildCompareSelect(selA, items);
+    buildCompareSelect(selB, items);
+    // По умолчанию A=0 (новейший), B=1
+    selA.value = '0';
+    selB.value = items.length > 1 ? '1' : '0';
+
+    document.getElementById('btn-compare')?.addEventListener('click', async () => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const btn = document.getElementById('btn-compare');
+      const result = document.getElementById('ai-compare-result');
+      if (!result) return;
+      if (btn) btn.disabled = true;
+      result.hidden = false;
+      result.innerHTML = '<p class="ai-card-hint">Загрузка…</p>';
+      try {
+        const r = await fetch('ai_insights_compare_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({ idx1: Number(selA.value), idx2: Number(selB.value) }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          result.innerHTML = '<p style="color:var(--danger)">' + esc(j.error || 'Ошибка') + '</p>';
+          return;
+        }
+        renderCompareResult(result, j);
+      } catch (e) {
+        result.innerHTML = '<p style="color:var(--danger)">' + esc(String(e?.message || e)) + '</p>';
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+  }
+
+  function renderCompareResult(container, data) {
+    const tA = (data.a?.t || '').replace('T', ' ').replace('Z', ' UTC').slice(0, 19);
+    const tB = (data.b?.t || '').replace('T', ' ').replace('Z', ' UTC').slice(0, 19);
+    const rows = (data.delta || [])
+      .filter((d) => d.a != null || d.b != null)
+      .map((d) => {
+        const deltaClass =
+          d.diff == null ? '' : d.diff > 0 ? ' ai-delta-up' : d.diff < 0 ? ' ai-delta-down' : '';
+        return (
+          '<tr>' +
+          '<td class="ai-cmp-label">' + esc(d.label) + '</td>' +
+          '<td class="ai-cmp-val">' + fmtRub(d.a) + '</td>' +
+          '<td class="ai-cmp-val">' + fmtRub(d.b) + '</td>' +
+          '<td class="ai-cmp-delta' + deltaClass + '">' + fmtDelta(d.diff, d.pct) + '</td>' +
+          '</tr>'
+        );
+      })
+      .join('');
+    container.innerHTML =
+      '<table class="ai-compare-table">' +
+      '<thead><tr><th>Метрика</th><th>A: ' + esc(tA) + '</th><th>B: ' + esc(tB) + '</th><th>Δ A − B</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+      (data.a?.hasAnalysis
+        ? '<details class="ai-cmp-analysis"><summary>Анализ снимка A</summary><div class="ai-markdown">' +
+          (typeof DOMPurify !== 'undefined' && typeof marked !== 'undefined'
+            ? DOMPurify.sanitize(marked.parse(data.a.analysis || '', { breaks: true }))
+            : esc(data.a.analysis || '')) +
+          '</div></details>'
+        : '') +
+      (data.b?.hasAnalysis
+        ? '<details class="ai-cmp-analysis"><summary>Анализ снимка B</summary><div class="ai-markdown">' +
+          (typeof DOMPurify !== 'undefined' && typeof marked !== 'undefined'
+            ? DOMPurify.sanitize(marked.parse(data.b.analysis || '', { breaks: true }))
+            : esc(data.b.analysis || '')) +
+          '</div></details>'
+        : '');
   }
 
   if (document.readyState === 'loading') {

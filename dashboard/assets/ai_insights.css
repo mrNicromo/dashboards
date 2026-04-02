@@ -295,3 +295,251 @@
   color: var(--muted);
   font-size: 0.86rem;
 }
+
+/* ── Provider badges ─────────────────────────── */
+.ai-provider-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
+}
+.ai-provider-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.ai-provider-badge-gemini  { background: rgba(66,133,244,.18); color: #4285f4; border: 1px solid rgba(66,133,244,.3); }
+.ai-provider-badge-groq    { background: rgba(245,166,35,.15); color: var(--warn); border: 1px solid rgba(245,166,35,.3); }
+.ai-provider-badge-claude  { background: rgba(210,145,105,.18); color: #c47c45; border: 1px solid rgba(210,145,105,.3); }
+.ai-provider-order {
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding-left: 4px;
+}
+
+/* ── Custom question ─────────────────────────── */
+.ai-custom-question-wrap {
+  margin: 10px 0 4px;
+}
+.ai-custom-question-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+.ai-custom-question-toggle:hover {
+  text-decoration: underline;
+}
+.ai-custom-question-body {
+  margin-top: 8px;
+}
+.ai-custom-question-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  padding: 8px 12px;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.ai-custom-question-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Streaming cursor ────────────────────────── */
+.ai-stream-cursor {
+  display: inline-block;
+  animation: ai-blink 0.9s step-end infinite;
+  color: var(--accent);
+  font-size: 1rem;
+  line-height: 1;
+}
+@keyframes ai-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Compare section ─────────────────────────── */
+.ai-compare-card {
+  margin-top: 4px;
+}
+.ai-compare-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ai-compare-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.ai-compare-label {
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.ai-compare-select {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  width: 100%;
+}
+.ai-compare-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.ai-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  margin-top: 6px;
+}
+.ai-compare-table th,
+.ai-compare-table td {
+  padding: 5px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+.ai-compare-table th:first-child,
+.ai-compare-table td.ai-cmp-label {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+}
+.ai-compare-table th {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ai-compare-table tr:last-child td {
+  border-bottom: none;
+}
+.ai-cmp-val {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ai-delta-up   { color: var(--danger); font-weight: 600; }
+.ai-delta-down { color: var(--ok);     font-weight: 600; }
+.ai-cmp-analysis {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ai-cmp-analysis summary {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+  background: var(--surface);
+}
+.ai-cmp-analysis summary:hover {
+  color: var(--text);
+}
+.ai-cmp-analysis .ai-markdown {
+  border-radius: 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+/* ── Cron card ───────────────────────────────── */
+.ai-cron-card {
+  margin-top: 4px;
+}
+.ai-cron-example {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+/* ── Mobile ──────────────────────────────────── */
+@media (max-width: 600px) {
+  .ai-topbar {
+    padding: 0 10px;
+    min-height: 48px;
+  }
+  .ai-nav-tab {
+    padding: 4px 7px;
+    font-size: 0.72rem;
+  }
+  .ai-wrap {
+    padding: 12px 10px 32px;
+    gap: 14px;
+  }
+  .ai-hero h1 {
+    font-size: 1.25rem;
+  }
+  .ai-hero-sub {
+    font-size: 0.82rem;
+  }
+  .ai-chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .ai-canvas-wrap {
+    height: 180px;
+  }
+  .ai-canvas-tall {
+    height: 220px;
+  }
+  .ai-insight-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .ai-insight-actions {
+    width: 100%;
+  }
+  .ai-insight-actions .btn-icon {
+    flex: 1;
+    text-align: center;
+    font-size: 0.78rem;
+    padding: 7px 8px;
+  }
+  .ai-compare-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ai-compare-table {
+    font-size: 0.76rem;
+  }
+  .ai-compare-table th,
+  .ai-compare-table td {
+    padding: 4px 6px;
+  }
+  .ai-cron-example {
+    font-size: 0.68rem;
+  }
+}

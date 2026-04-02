@@ -19,20 +19,42 @@ $chartsNeedAsyncRefresh = $patOk && (
 );
 $geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
 $groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
-$keyConfigured = $geminiConfigured || $groqConfigured;
+$anthropicConfigured = trim((string) (dashboard_env('DASHBOARD_ANTHROPIC_API_KEY') ?: ($c['anthropic_api_key'] ?? ''))) !== '';
+$keyConfigured = $geminiConfigured || $groqConfigured || $anthropicConfigured;
+$configuredProviders = array_filter([
+    $geminiConfigured ? 'Gemini' : null,
+    $groqConfigured ? 'Groq' : null,
+    $anthropicConfigured ? 'Claude' : null,
+]);
 $historyChart = AiInsightsHistory::chartSeries(56);
 $hist = AiInsightsHistory::load();
 $historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
 $chartHints = AiInsightsContext::chartHintsFromCharts($charts);
+// Мета-список снимков для UI сравнения (timestamp + краткие метрики, без текста анализа)
+$historyMeta = array_reverse(array_map(static function (array $item): array {
+    $m = $item['metrics'] ?? [];
+    return [
+        't' => $item['t'] ?? '',
+        'hasAnalysis' => isset($item['analysis']) && $item['analysis'] !== null && $item['analysis'] !== '',
+        'm' => [
+            'dzTotal'   => $m['dzTotal'] ?? null,
+            'dzOverdue' => $m['dzOverdue'] ?? null,
+            'churnRisk' => $m['churnRisk'] ?? null,
+            'factTotalYtd' => $m['factTotalYtd'] ?? null,
+        ],
+    ];
+}, $hist['items'] ?? []));
 
 $bootstrapJson = json_encode(
     [
         'charts' => $charts,
         'historyChart' => $historyChart,
         'historyCount' => $historyCount,
+        'historyMeta' => $historyMeta,
         'hasAiKey' => $keyConfigured,
         'chartsNeedAsyncRefresh' => $chartsNeedAsyncRefresh,
         'chartHints' => $chartHints,
+        'providers' => array_values($configuredProviders),
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
@@ -46,7 +68,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=5">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=6">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -83,7 +105,18 @@ $bootstrapJson = json_encode(
 
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
-      <strong>Ключ AI не настроен.</strong> Нужен хотя бы один: <code>DASHBOARD_GEMINI_API_KEY</code> / <code>gemini_api_key</code> (основной) и/или <code>DASHBOARD_GROQ_API_KEY</code> / <code>groq_api_key</code> (резерв при лимите Gemini). Ключи не храните в git.
+      <strong>Ключ AI не настроен.</strong> Нужен хотя бы один:
+      <code>DASHBOARD_GEMINI_API_KEY</code> (Gemini · основной),
+      <code>DASHBOARD_GROQ_API_KEY</code> (Groq · резерв),
+      <code>DASHBOARD_ANTHROPIC_API_KEY</code> (Claude · резерв).
+      Задайте в <code>config.php</code> или переменных окружения. Ключи не храните в git.
+    </div>
+    <?php else: ?>
+    <div class="ai-provider-badges">
+      <?php foreach ($configuredProviders as $prov): ?>
+        <span class="ai-provider-badge ai-provider-badge-<?= strtolower(htmlspecialchars($prov, ENT_QUOTES, 'UTF-8')) ?>"><?= htmlspecialchars($prov, ENT_QUOTES, 'UTF-8') ?></span>
+      <?php endforeach; ?>
+      <span class="ai-provider-order">Порядок: Gemini → Groq → Claude</span>
     </div>
     <?php endif; ?>
 
@@ -124,10 +157,25 @@ $bootstrapJson = json_encode(
         <h2>Выводы и решения</h2>
         <div class="ai-insight-actions">
           <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" title="Сохранить текущие метрики в историю без вызова AI">Записать снимок метрик</button>
+          <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> title="Потоковая генерация — текст появляется по мере ответа модели">⚡ Стриминг</button>
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — шаг 1: синхронизация с Airtable по API, шаг 2: запрос к модели (графики и текст из одного снимка). «Записать снимок» — только метрики в историю тренда без AI.</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — синхронизация Airtable → запрос к модели. «⚡ Стриминг» — то же, но текст появляется сразу по мере ответа. «Записать снимок» — только метрики без AI.</p>
+
+      <div class="ai-custom-question-wrap" id="ai-custom-question-wrap">
+        <button type="button" class="ai-custom-question-toggle" id="btn-custom-question-toggle" aria-expanded="false">＋ Добавить свой вопрос к данным</button>
+        <div class="ai-custom-question-body" id="ai-custom-question-body" hidden>
+          <textarea
+            id="ai-custom-question"
+            class="ai-custom-question-textarea"
+            placeholder="Например: Какие клиенты из корзины 90+ ещё не закрыли долг? Или: Сравни риск чёрна этого месяца с прошлым."
+            rows="3"
+            maxlength="1000"
+          ></textarea>
+          <p class="ai-card-hint">Вопрос добавляется к промпту — модель ответит на него, используя данные снимка.</p>
+        </div>
+      </div>
       <p class="ai-restore-row" id="ai-restore-wrap" hidden>
         <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-restore">Показать последний сохранённый анализ</button>
       </p>
@@ -143,13 +191,50 @@ $bootstrapJson = json_encode(
         </div>
       </div>
     </section>
+    <section class="ai-card ai-compare-card" id="ai-compare-section" <?= $historyCount < 2 ? 'hidden' : '' ?>>
+      <h2>Сравнение двух снимков</h2>
+      <p class="ai-card-hint">Выберите два снимка из истории и сравните метрики — увидите дельту по ДЗ, Churn, потерям.</p>
+      <div class="ai-compare-controls">
+        <div class="ai-compare-select-wrap">
+          <label class="ai-compare-label">Снимок A (новее)</label>
+          <select id="ai-compare-a" class="ai-compare-select"></select>
+        </div>
+        <div class="ai-compare-select-wrap">
+          <label class="ai-compare-label">Снимок B (старше)</label>
+          <select id="ai-compare-b" class="ai-compare-select"></select>
+        </div>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-compare">Сравнить</button>
+      </div>
+      <div id="ai-compare-result" hidden></div>
+    </section>
+
+    <section class="ai-card ai-cron-card">
+      <h2>Автоматический анализ (cron)</h2>
+      <p class="ai-card-hint">Запускайте анализ по расписанию без браузера — через <code>ai_insights_cron_api.php</code> с <code>DASHBOARD_API_SECRET</code>.</p>
+      <pre class="ai-cron-example"># Каждый день в 9:00 UTC
+0 9 * * * curl -s -X POST https://your-domain/ai_insights_cron_api.php \
+     -H "Authorization: Bearer &lt;DASHBOARD_API_SECRET&gt;" \
+     -H "Content-Type: application/json" \
+     -d '{}' &gt;&gt; /var/log/aq-ai-cron.log
+
+# Только снимок метрик (без вызова LLM):
+0 * * * * curl -s -X POST https://your-domain/ai_insights_cron_api.php \
+     -H "Authorization: Bearer &lt;DASHBOARD_API_SECRET&gt;" \
+     -H "Content-Type: application/json" \
+     -d '{"metricsOnly":true}'
+
+# Пороги алертов (env на сервере):
+# DASHBOARD_AI_ALERT_OVERDUE_PCT=40   — алерт если просрочка &gt; 40% ДЗ
+# DASHBOARD_AI_ALERT_AGING90_PCT=20   — алерт если корзина 90+ &gt; 20% ДЗ
+# DASHBOARD_AI_ALERT_CHURN_MRR=500000 — алерт если Churn-риск MRR &gt; 500 000 ₽</pre>
+    </section>
   </div>
 
   <script type="application/json" id="ai-bootstrap"><?= $bootstrapJson ?></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=8" defer></script>
+  <script src="assets/ai_insights.js?v=9" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
