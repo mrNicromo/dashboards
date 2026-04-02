@@ -70,7 +70,7 @@ $bootstrapJson = json_encode(
   <div class="ai-wrap">
     <header class="ai-hero">
       <h1>AI-аналитика</h1>
-      <p class="ai-hero-sub">Графики — актуальный снимок из Airtable (дебиторка, Churn) и связанных отчётов; факт потерь по месяцам — из кэша «Потери» (Sheets). Отдельно на сервере хранится <strong>история снимков</strong> для тренда (<code>cache/ai-insights-history.json</code>, не в git). При первом открытии пустые графики подтягиваются в фоне, без блокировки страницы.</p>
+      <p class="ai-hero-sub">Графики — снимок из Airtable (дебиторка, Churn) и отчётов; потери по месяцам — из Sheets → кэш. <strong>Сгенерировать анализ</strong> идёт в два HTTP-шага (синхронизация по API, затем модель) — реже обрывается по таймауту прокси. История снимков — <code>cache/ai-insights-history.json</code>. Пустые графики при открытии подгружаются в фоне.</p>
     </header>
 
     <p class="ai-sync-line" id="ai-charts-sync-status" <?= $chartsNeedAsyncRefresh ? '' : 'hidden' ?>><?= $chartsNeedAsyncRefresh ? 'Синхронизация с Airtable для графиков…' : '' ?></p>
