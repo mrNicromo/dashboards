@@ -17,12 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 csrf_check();
 
 $c = dashboard_config();
-$key = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
-if ($key === '') {
+$geminiKey = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
+$groqKey = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? '')));
+
+if ($geminiKey === '' && $groqKey === '') {
     http_response_code(400);
     echo json_encode([
         'ok' => false,
-        'error' => 'Не задан ключ Google AI. Укажите переменную окружения DASHBOARD_GEMINI_API_KEY или поле gemini_api_key в config.php.',
+        'error' => 'Нужен хотя бы один ключ: DASHBOARD_GEMINI_API_KEY (Gemini) и/или DASHBOARD_GROQ_API_KEY (резерв Groq). См. config.php.',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -55,15 +57,48 @@ PROMPT;
 $historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
 $user = "Текущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (для тренда и прогноза)\n" . $historyBlock;
 
-$gen = ai_insights_gemini_generate($key, $system, $user);
-if (!$gen['ok']) {
+$gen = null;
+$provider = null;
+$lastErr = '';
+
+if ($geminiKey !== '') {
+    $gen = ai_insights_gemini_generate($geminiKey, $system, $user);
+    if ($gen['ok']) {
+        $provider = 'gemini';
+    } else {
+        $lastErr = (string) ($gen['error'] ?? '');
+        $httpCode = (int) ($gen['httpCode'] ?? 0);
+        if ($groqKey !== '' && ai_insights_should_fallback_to_groq($lastErr, $httpCode)) {
+            $gen = ai_insights_groq_generate($groqKey, $system, $user);
+            if ($gen['ok']) {
+                $provider = 'groq';
+            } else {
+                $lastErr = (string) ($gen['error'] ?? $lastErr);
+            }
+        }
+    }
+}
+
+if ($provider === null && $groqKey !== '' && ($geminiKey === '' || !($gen['ok'] ?? false))) {
+    if ($geminiKey === '') {
+        $gen = ai_insights_groq_generate($groqKey, $system, $user);
+        if ($gen['ok']) {
+            $provider = 'groq';
+        } else {
+            $lastErr = (string) ($gen['error'] ?? '');
+        }
+    }
+}
+
+if ($provider === null || !($gen['ok'] ?? false)) {
     http_response_code(502);
     echo json_encode([
         'ok' => false,
-        'error' => $gen['error'] ?? 'Не удалось получить ответ от Google AI. Проверьте ключ и квоту API.',
+        'error' => $lastErr !== '' ? $lastErr : ($gen['error'] ?? 'Не удалось получить ответ от AI.'),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
+
 $text = $gen['text'];
 
 $metrics = AiInsightsContext::metricsSnapshot($dir, $baseId);
@@ -74,12 +109,35 @@ $histCount = is_array($hist['items'] ?? null) ? count($hist['items']) : 0;
 echo json_encode([
     'ok' => true,
     'text' => $text,
+    'provider' => $provider,
     'historyCount' => $histCount,
     'historyChart' => AiInsightsHistory::chartSeries(56),
 ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
 /**
- * @return array{ok:bool, text?: string, error?: string}
+ * Резерв при лимите/квоте Gemini (429, quota, resource exhausted и т.п.).
+ */
+function ai_insights_should_fallback_to_groq(string $errorMessage, int $httpCode): bool
+{
+    if ($httpCode === 429) {
+        return true;
+    }
+    $e = mb_strtolower($errorMessage);
+    $needles = [
+        'resource_exhausted', 'quota', 'rate limit', 'too many requests',
+        'billing', 'limit exceeded', 'exceeded your', 'tokens', 'capacity',
+        '429', '503', 'overloaded', 'try again later',
+    ];
+    foreach ($needles as $n) {
+        if (str_contains($e, $n)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @return array{ok:bool, text?: string, error?: string, httpCode?: int}
  */
 function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, string $userText): array
 {
@@ -101,7 +159,7 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
 
     $ch = curl_init($url);
     if ($ch === false) {
-        return ['ok' => false, 'error' => 'curl_init failed'];
+        return ['ok' => false, 'error' => 'curl_init failed', 'httpCode' => 0];
     }
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
@@ -115,22 +173,22 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     if ($raw === false) {
-        return ['ok' => false, 'error' => 'Сеть: запрос к Google AI не выполнен'];
+        return ['ok' => false, 'error' => 'Сеть: запрос к Google AI не выполнен', 'httpCode' => $code];
     }
     $j = json_decode($raw, true);
     if (!is_array($j)) {
-        return ['ok' => false, 'error' => 'Некорректный ответ API (HTTP ' . $code . ')'];
+        return ['ok' => false, 'error' => 'Некорректный ответ API (HTTP ' . $code . ')', 'httpCode' => $code];
     }
     if (!empty($j['error']['message'])) {
-        return ['ok' => false, 'error' => 'Google AI: ' . (string) $j['error']['message']];
+        return ['ok' => false, 'error' => 'Google AI: ' . (string) $j['error']['message'], 'httpCode' => $code];
     }
     if ($code >= 400) {
-        return ['ok' => false, 'error' => 'HTTP ' . $code];
+        return ['ok' => false, 'error' => 'HTTP ' . $code, 'httpCode' => $code];
     }
     $parts = $j['candidates'][0]['content']['parts'] ?? null;
     if (!is_array($parts)) {
         $fr = $j['candidates'][0]['finishReason'] ?? '';
-        return ['ok' => false, 'error' => 'Пустой ответ модели' . ($fr !== '' ? ' (' . $fr . ')' : '')];
+        return ['ok' => false, 'error' => 'Пустой ответ модели' . ($fr !== '' ? ' (' . $fr . ')' : ''), 'httpCode' => $code];
     }
     $out = '';
     foreach ($parts as $p) {
@@ -139,7 +197,63 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
         }
     }
     if ($out === '') {
-        return ['ok' => false, 'error' => 'Модель вернула пустой текст'];
+        return ['ok' => false, 'error' => 'Модель вернула пустой текст', 'httpCode' => $code];
     }
-    return ['ok' => true, 'text' => $out];
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code];
+}
+
+/**
+ * Groq — OpenAI-совместимый API (ключ gsk_…).
+ *
+ * @return array{ok:bool, text?: string, error?: string, httpCode?: int}
+ */
+function ai_insights_groq_generate(string $apiKey, string $systemInstruction, string $userText): array
+{
+    $url = 'https://api.groq.com/openai/v1/chat/completions';
+    $model = 'llama-3.3-70b-versatile';
+
+    $payload = [
+        'model' => $model,
+        'temperature' => 0.35,
+        'max_tokens' => 8192,
+        'messages' => [
+            ['role' => 'system', 'content' => $systemInstruction],
+            ['role' => 'user', 'content' => $userText],
+        ],
+    ];
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => 'curl_init failed', 'httpCode' => 0];
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey,
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_CONNECTTIMEOUT => 15,
+    ]);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($raw === false) {
+        return ['ok' => false, 'error' => 'Сеть: запрос к Groq не выполнен', 'httpCode' => $code];
+    }
+    $j = json_decode($raw, true);
+    if (!is_array($j)) {
+        return ['ok' => false, 'error' => 'Некорректный ответ Groq (HTTP ' . $code . ')', 'httpCode' => $code];
+    }
+    if ($code >= 400) {
+        $msg = isset($j['error']['message']) ? (string) $j['error']['message'] : 'HTTP ' . $code;
+        return ['ok' => false, 'error' => 'Groq: ' . $msg, 'httpCode' => $code];
+    }
+    $out = (string) ($j['choices'][0]['message']['content'] ?? '');
+    if ($out === '') {
+        return ['ok' => false, 'error' => 'Groq: пустой ответ', 'httpCode' => $code];
+    }
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code];
 }

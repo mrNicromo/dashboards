@@ -377,7 +377,8 @@
         st.classList.add('ai-status-err');
         return;
       }
-      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.';
+      const prov = j.provider ? ' · ' + j.provider : '';
+      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov;
       st.classList.add('ai-status-ok');
       renderMarkdown(j.text || '');
       if (j.historyChart) {

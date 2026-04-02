@@ -150,6 +150,7 @@ function dashboard_config(): array
         'auth_password_hash' => '',
         'api_secret' => '',
         'gemini_api_key' => '',
+        'groq_api_key' => '',
     ];
     $path = __DIR__ . '/config.php';
     $fromFile = (is_readable($path)) ? require $path : [];
@@ -176,6 +177,7 @@ function dashboard_config(): array
     $authPassHash = dashboard_env('DASHBOARD_AUTH_PASSWORD_HASH') ?: ($merged['auth_password_hash'] ?? '');
     $apiSecret    = dashboard_env('DASHBOARD_API_SECRET') ?: ($merged['api_secret'] ?? '');
     $geminiKey    = dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($merged['gemini_api_key'] ?? '');
+    $groqKey      = dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($merged['groq_api_key'] ?? '');
 
     return [
         'airtable_pat' => trim((string) $pat),
@@ -194,6 +196,7 @@ function dashboard_config(): array
         'auth_password_hash' => trim((string) $authPassHash),
         'api_secret' => trim((string) $apiSecret),
         'gemini_api_key' => trim((string) $geminiKey),
+        'groq_api_key' => trim((string) $groqKey),
     ];
 }
 

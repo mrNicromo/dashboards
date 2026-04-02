@@ -28,7 +28,7 @@
 - **`DASHBOARD_AUTH_USERNAME`**, **`DASHBOARD_AUTH_PASSWORD_HASH`** (рекомендуется) или **`DASHBOARD_AUTH_PASSWORD`**.
 - Опционально **`DASHBOARD_AUTH_ENABLED`** = `1` / `true` (если нужно явно включить).
 
-Страница **AI-аналитики** (`ai_insights.php`) вызывает Google Gemini: задайте **`DASHBOARD_GEMINI_API_KEY`** (или `gemini_api_key` в `config.php`). Ключ не коммитьте.
+Страница **AI-аналитики** (`ai_insights.php`): основной провайдер — Google Gemini (**`DASHBOARD_GEMINI_API_KEY`** или `gemini_api_key` в `config.php`); при исчерпании квоты/лимита можно задать резерв **`DASHBOARD_GROQ_API_KEY`** (`groq_api_key`). Ключи не коммитьте.
 
 Доступ к **JSON API** при включённой веб-авторизации (cron, интеграции без браузера):
 

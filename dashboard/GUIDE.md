@@ -282,7 +282,7 @@ php -S localhost:8080
 
 ```
 index.php         → Главная страница (сводка всех KPI)
-ai_insights.php   → AI-аналитика (графики по кэшу + выводы Gemini; история снимков в `cache/ai-insights-history.json`, ключ `DASHBOARD_GEMINI_API_KEY`)
+ai_insights.php   → AI-аналитика (графики по кэшу + выводы AI: Gemini, при лимите — Groq; история в `cache/ai-insights-history.json`, ключи `DASHBOARD_GEMINI_API_KEY` и опционально `DASHBOARD_GROQ_API_KEY`)
 churn.php         → Угроза Churn (кто сейчас в риске)
 churn_fact.php    → Потери выручки (факт ухода и даунселла)
 manager.php       → Дебиторская задолженность

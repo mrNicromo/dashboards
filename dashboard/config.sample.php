@@ -36,4 +36,6 @@ return [
     'api_secret' => '',
     // Необязательно: Google AI (Gemini) для страницы ai_insights.php — переменная DASHBOARD_GEMINI_API_KEY предпочтительнее.
     'gemini_api_key' => '',
+    // Резерв: Groq (ключ gsk_…) при квоте/лимите Gemini — DASHBOARD_GROQ_API_KEY.
+    'groq_api_key' => '',
 ];

@@ -7,7 +7,9 @@ require_once __DIR__ . '/lib/AiInsightsHistory.php';
 $c = dashboard_config();
 $baseId = (string) ($c['airtable_base_id'] ?? '');
 $charts = AiInsightsContext::chartPayload(AiInsightsContext::cacheDir(), $baseId);
-$keyConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
+$geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
+$groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
+$keyConfigured = $geminiConfigured || $groqConfigured;
 $historyChart = AiInsightsHistory::chartSeries(56);
 $hist = AiInsightsHistory::load();
 $historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
@@ -16,7 +18,7 @@ $bootstrapJson = json_encode(
         'charts' => $charts,
         'historyChart' => $historyChart,
         'historyCount' => $historyCount,
-        'hasGeminiKey' => $keyConfigured,
+        'hasAiKey' => $keyConfigured,
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
@@ -59,7 +61,7 @@ $bootstrapJson = json_encode(
 
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
-      <strong>Ключ Google AI не настроен.</strong> Задайте переменную окружения <code>DASHBOARD_GEMINI_API_KEY</code> или поле <code>gemini_api_key</code> в <code>config.php</code>. Ключ не храните в git.
+      <strong>Ключ AI не настроен.</strong> Нужен хотя бы один: <code>DASHBOARD_GEMINI_API_KEY</code> / <code>gemini_api_key</code> (основной) и/или <code>DASHBOARD_GROQ_API_KEY</code> / <code>groq_api_key</code> (резерв при лимите Gemini). Ключи не храните в git.
     </div>
     <?php endif; ?>
 
@@ -101,7 +103,7 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — JSON из кэша + история снимков → Gemini; ответ и метрики дописываются в историю. «Записать снимок» — только метрики (для графика тренда).</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — JSON из кэша + история снимков → сначала Gemini (если задан ключ), при квоте/лимите — Groq; ответ и метрики дописываются в историю. «Записать снимок» — только метрики (для графика тренда).</p>
       <div class="ai-markdown" id="ai-output" hidden></div>
     </section>
   </div>
@@ -110,7 +112,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=2" defer></script>
+  <script src="assets/ai_insights.js?v=3" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
