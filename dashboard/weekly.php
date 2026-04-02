@@ -63,8 +63,8 @@ if ($hasPat) {
     </div>
   </div>
   <script src="assets/utils.js?v=1" defer></script>
-  <script src="assets/weekly.js?v=3" defer></script>
-  <script src="assets/shared-nav.js?v=2" defer></script>
+  <script src="assets/weekly.js?v=4" defer></script>
+  <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>
 </body>
 </html>

@@ -1,0 +1,219 @@
+/* AI insights — те же токены, что dashboard.css */
+.ai-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 18px;
+  min-height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.ai-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ai-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-logo-box {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.ai-logo-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.ai-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.ai-nav-tab {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.ai-nav-tab:hover {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+.ai-nav-tab-active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  font-weight: 700;
+  cursor: default;
+}
+.ai-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px 18px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.ai-hero h1 {
+  margin: 0 0 8px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.ai-hero-sub {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.ai-banner {
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.ai-banner-warn {
+  background: rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  color: var(--text);
+}
+.ai-banner code {
+  font-size: 0.82em;
+  background: var(--elevated);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.ai-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.ai-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.ai-card-wide {
+  grid-column: 1 / -1;
+}
+.ai-card h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.ai-card-hint {
+  margin: 0 0 12px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.ai-canvas-wrap {
+  position: relative;
+  height: 220px;
+}
+.ai-canvas-tall {
+  height: 280px;
+}
+
+.ai-insight-card {
+  padding-bottom: 20px;
+}
+.ai-insight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ai-btn-primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+  font-weight: 600;
+}
+.ai-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.ai-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#ai-status.ai-status-err {
+  color: var(--danger);
+}
+#ai-status.ai-status-ok {
+  color: var(--ok);
+}
+
+.ai-markdown {
+  margin-top: 14px;
+  padding: 16px 18px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+.ai-markdown h2 {
+  font-size: 1.05rem;
+  margin: 18px 0 10px;
+  color: var(--text);
+}
+.ai-markdown h2:first-child {
+  margin-top: 0;
+}
+.ai-markdown h3 {
+  font-size: 0.95rem;
+  margin: 14px 0 8px;
+  color: var(--text);
+}
+.ai-markdown ul,
+.ai-markdown ol {
+  margin: 8px 0 8px 1.2em;
+  padding: 0;
+}
+.ai-markdown li {
+  margin: 4px 0;
+}
+.ai-markdown strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.ai-markdown p {
+  margin: 8px 0;
+}

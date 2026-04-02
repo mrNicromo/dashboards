@@ -198,6 +198,7 @@ function fmtR(float $v): string {
     <a class="hub-nav-tab" href="churn.php">⚠ Угроза Churn</a>
     <a class="hub-nav-tab" href="churn_fact.php">📉 Потери</a>
     <a class="hub-nav-tab" href="manager.php">💰 ДЗ</a>
+    <a class="hub-nav-tab" href="ai_insights.php">🤖 AI</a>
   </nav>
   <button class="btn-icon" id="btn-theme" title="Светлая тема" aria-label="Переключить тему">☀️</button>
 </div>
@@ -313,6 +314,21 @@ function fmtR(float $v): string {
           <a class="hub-btn" href="churn_fact.php">Открыть →</a>
           <button class="hub-btn secondary" id="btn-refresh-fact" title="Сбросить кэш и обновить данные">↻</button>
         </div>
+      </div>
+    </div>
+
+    <!-- AI-аналитика -->
+    <div class="hub-card">
+      <div class="hub-card-head">
+        <div class="hub-card-icon">🤖</div>
+        <div class="hub-card-title">AI-аналитика</div>
+        <div class="hub-card-desc">Выводы и решения по данным дашбордов (ДЗ, churn, потери) — на базе кэша Airtable и Google Gemini</div>
+      </div>
+      <div class="hub-card-body">
+        <div style="color:var(--hub-muted);font-size:.82rem;line-height:1.45">Графики тех же метрик + текстовый разбор проблемных зон и приоритетных действий.</div>
+      </div>
+      <div class="hub-card-foot">
+        <a class="hub-btn" href="ai_insights.php">Открыть AI →</a>
       </div>
     </div>
 
@@ -547,6 +563,6 @@ function fmtR(float $v): string {
     btn.setAttribute('aria-label', dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
   })();
 </script>
-<script src="assets/shared-nav.js?v=2" defer></script>
+<script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

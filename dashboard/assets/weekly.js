@@ -104,6 +104,7 @@
           <a href="churn.php" class="wk-tab-link">Угроза Churn</a>
           <a href="churn_fact.php" class="wk-tab-link">Потери</a>
           <a href="manager.php" class="wk-tab-link">ДЗ</a>
+          <a href="ai_insights.php" class="wk-tab-link">AI</a>
           <span class="wk-tab-link wk-tab-active">Еженедельный</span>
         </div>
         <div class="topbar-nav">

@@ -1536,6 +1536,28 @@ function handleWeeklyPlaceholderPage() {
   return { status: 200, type: "text/html; charset=utf-8", body };
 }
 
+function handleAiInsightsPlaceholderPage() {
+  const body = `<!DOCTYPE html>
+<html lang="ru" id="html-root">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AI-аналитика (Node)</title>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
+</head>
+<body>
+  <div class="setup">
+    <h1>AI-аналитика</h1>
+    ${nodeModeNoticeP()}
+    <p>Страница с Gemini и графиками работает при запуске через <strong>PHP</strong> (не Node). Откройте проект с LAUNCH / веб-сервером с PHP.</p>
+    <p><a href="index.php">На главную</a></p>
+  </div>
+</body>
+</html>`;
+  return { status: 200, type: "text/html; charset=utf-8", body };
+}
+
 function handleChurnPage(config) {
   if (!config.pat) {
     return {
@@ -1563,8 +1585,8 @@ function handleChurnPage(config) {
     </div>
   </div>
   <script src="assets/utils.js?v=1" defer></script>
-  <script src="assets/churn.js?v=6" defer></script>
-  <script src="assets/shared-nav.js?v=2" defer></script>`
+  <script src="assets/churn.js?v=7" defer></script>
+  <script src="assets/shared-nav.js?v=3" defer></script>`
     : `<div class="setup">
     <h1>Угроза Churn</h1>
     <p>Нет файла кэша <code>cache/churn-report.json</code>. Сгенерируйте его из среды с PHP или откройте <a href="index.php">главный дашборд</a>.</p>
@@ -1621,8 +1643,8 @@ function handleChurnFactPage(config) {
     </div>
   </div>
   <script src="assets/utils.js?v=1" defer></script>
-  <script src="assets/churn_fact.js?v=15" defer></script>
-  <script src="assets/shared-nav.js?v=2" defer></script>`
+  <script src="assets/churn_fact.js?v=16" defer></script>
+  <script src="assets/shared-nav.js?v=3" defer></script>`
     : `<div class="setup">
     <h1>Потери выручки</h1>
     <p>Нет кэша <code>cache/churn-fact-report.json</code>. Нужен предварительный запуск с PHP или откройте <a href="index.php">главный дашборд</a>.</p>
@@ -1745,6 +1767,13 @@ async function handle(req, res) {
 
   if (pathname === "/weekly.php") {
     const r = handleWeeklyPlaceholderPage();
+    res.writeHead(r.status, { "Content-Type": r.type });
+    res.end(r.body);
+    return;
+  }
+
+  if (pathname === "/ai_insights.php") {
+    const r = handleAiInsightsPlaceholderPage();
     res.writeHead(r.status, { "Content-Type": r.type });
     res.end(r.body);
     return;

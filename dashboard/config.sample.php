@@ -34,4 +34,6 @@ return [
     // Необязательно: общий секрет для вызова churn_api.php / churn_fact_api.php без CSRF
     // (переменная окружения DASHBOARD_API_SECRET имеет приоритет). См. GUIDE.md.
     'api_secret' => '',
+    // Необязательно: Google AI (Gemini) для страницы ai_insights.php — переменная DASHBOARD_GEMINI_API_KEY предпочтительнее.
+    'gemini_api_key' => '',
 ];

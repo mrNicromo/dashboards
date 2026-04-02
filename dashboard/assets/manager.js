@@ -487,6 +487,7 @@
             <a class="mgr-nav-tab" href="churn.php">⚠ Угроза Churn</a>
             <a class="mgr-nav-tab" href="churn_fact.php">📉 Потери</a>
             <span class="mgr-nav-tab mgr-nav-tab-active">💰 ДЗ</span>
+            <a class="mgr-nav-tab" href="ai_insights.php">🤖 AI</a>
           </nav>
         </div>
         <div class="mgr-meta">
