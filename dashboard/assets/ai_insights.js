@@ -475,7 +475,7 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({ forceRefresh: true }),
+        body: JSON.stringify({}),
       });
       let j = {};
       try {
@@ -492,10 +492,8 @@
       }
       const prov = j.provider ? ' · ' + j.provider : '';
       const fresh = j.dataRefreshedFromAirtable
-        ? ' Данные из Airtable обновлены перед анализом.'
-        : j.usedRecentCache
-          ? ' Использован недавний кэш (полная синхронизация не требовалась).'
-          : '';
+        ? ' Снимок для анализа собран запросами к API (Airtable/отчёты).'
+        : '';
       st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov + fresh;
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');

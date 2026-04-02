@@ -127,7 +127,7 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — полная синхронизация с Airtable перед запросом к модели, затем развёрнутый текст (KPI, зоны внимания, приоритеты, прогноз). «Записать снимок» — только метрики в историю тренда без AI.</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — перед моделью каждый раз идут запросы к Airtable и отчётам (не подстановка старого кэша без API), затем развёрнутый текст. «Записать снимок» — только метрики в историю тренда без AI.</p>
       <div class="ai-markdown ai-markdown-empty" id="ai-output">
         <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
       </div>
@@ -138,7 +138,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=6" defer></script>
+  <script src="assets/ai_insights.js?v=7" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

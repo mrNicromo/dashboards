@@ -18,10 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_check();
 
-$rawIn = file_get_contents('php://input') ?: '{}';
-$bodyIn = json_decode($rawIn, true);
-$forceRefresh = is_array($bodyIn) && !empty($bodyIn['forceRefresh']);
-
 $c = dashboard_config();
 $geminiKey = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
 $groqKey = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? '')));
@@ -51,27 +47,17 @@ if (!is_dir($dir)) {
     exit;
 }
 
-$dzFile = $dir . '/dz-data-default.json';
-$refreshTtlSec = 180;
-$skipAirtableRefresh = false;
-if (!$forceRefresh && is_file($dzFile)) {
-    $ageSec = time() - (int) filemtime($dzFile);
-    if ($ageSec >= 0 && $ageSec < $refreshTtlSec) {
-        $skipAirtableRefresh = true;
-    }
-}
-
-if (!$skipAirtableRefresh) {
-    try {
-        AiInsightsContext::refreshCachesFromAirtable($c);
-    } catch (Throwable $e) {
-        http_response_code(502);
-        echo json_encode([
-            'ok' => false,
-            'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+// Перед каждым анализом — живые запросы к Airtable и пайплайнам отчётов (DzReport, Churn, потери/Sheets, Manager).
+// JSON для модели не читается «как есть» с диска без синхронизации: сначала refreshCachesFromAirtable (см. lib).
+try {
+    AiInsightsContext::refreshCachesFromAirtable($c);
+} catch (Throwable $e) {
+    http_response_code(502);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 $baseId = (string) ($c['airtable_base_id'] ?? '');
@@ -102,11 +88,8 @@ $system = <<<'PROMPT'
 PROMPT;
 
 $historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
-$cacheNote = '';
-if ($skipAirtableRefresh && is_file($dzFile)) {
-    $cacheNote = "\n\n(Служебно: полная синхронизация с Airtable пропущена — использован недавний серверный кэш, возраст снимка ДЗ: ~" . (string) max(0, time() - (int) filemtime($dzFile)) . " с.)";
-}
-$user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $cacheNote;
+$liveNote = "\n\n(Служебно: этот JSON собран **сразу перед этим запросом** — сервер вызвал Airtable API и связанные отчёты (Sheets для потерь и т.д.), затем сформировал снимок. Это не «произвольное чтение старого кэша без запросов».)";
+$user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote;
 
 $gen = null;
 $provider = null;
@@ -162,8 +145,8 @@ echo json_encode([
     'ok' => true,
     'text' => $text,
     'provider' => $provider,
-    'dataRefreshedFromAirtable' => !$skipAirtableRefresh,
-    'usedRecentCache' => $skipAirtableRefresh,
+    'dataRefreshedFromAirtable' => true,
+    'usedRecentCache' => false,
     'historyCount' => $histCount,
     'historyChart' => AiInsightsHistory::chartSeries(56),
     'charts' => $chartsOut,

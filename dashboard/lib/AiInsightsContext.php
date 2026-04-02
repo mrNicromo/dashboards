@@ -254,7 +254,7 @@ final class AiInsightsContext
         $bundle['churn'] = array_merge($bundle['churn'], self::churnExtrasForAi($churn));
         $bundle['dz'] = array_merge($bundle['dz'], self::dzExtrasForAi($inner));
         $bundle['crossDashboard'] = self::loadCrossDashboardCaches($dir);
-        $bundle['source'] = 'Снимок из кэшей после синхронизации (где она была). В JSON могут быть не все разделы — опирайся только на непустые поля; отсутствующие блоки не выдумывай.';
+        $bundle['source'] = 'Для этого ответа данные получены запросами к Airtable и отчётам непосредственно перед вызовом модели (рабочие файлы cache — результат свежего fetch, не «угадывание» по старому снимку). В JSON могут быть не все разделы — опирайся только на непустые поля.';
 
         return $bundle;
     }
