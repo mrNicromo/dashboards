@@ -47,8 +47,8 @@ if (is_readable($factCache)) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Анализ дебиторской задолженности</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/manager.css?v=5">
+  <link rel="stylesheet" href="assets/dashboard.css?v=15">
+  <link rel="stylesheet" href="assets/manager.css?v=6">
   <script>
     // Применяем тему до рендера — без мигания
     (function(){
@@ -72,7 +72,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="churn-bootstrap"><?= $churnJson ?></script>
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
-  <script src="assets/manager.js?v=6" defer></script>
+  <script src="assets/manager.js?v=7" defer></script>
   <script src="assets/shared-nav.js?v=1" defer></script>
 <?php endif; ?>
 </body>

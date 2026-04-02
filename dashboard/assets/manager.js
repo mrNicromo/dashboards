@@ -341,7 +341,7 @@
                 ${healthText}
               </span>
             </h2>
-            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn.php" style="color:var(--accent)">Открыть полный отчёт →</a></p>
+            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn.php" class="link-accent">Открыть полный отчёт →</a></p>
           </div>
           <a href="churn.php" class="btn-secondary" style="align-self:center">Полный отчёт ↗</a>
         </div>
@@ -442,7 +442,7 @@
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">📉 Фактические потери выручки (Churn)</h2>
-            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn_fact.php" style="color:var(--accent)">Открыть полный отчёт →</a></p>
+            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn_fact.php" class="link-accent">Открыть полный отчёт →</a></p>
           </div>
           <a href="churn_fact.php" class="btn-secondary" style="align-self:center">Полный отчёт ↗</a>
         </div>
@@ -928,13 +928,13 @@
     const tableHtml = (rows, emptyMsg) => {
       if (!rows || rows.length === 0) return `<div class="empty-state">${emptyMsg}</div>`;
       return `<div class="mgr-table-wrap"><table class="mgr-table">
-        <thead><tr><th class="idx">#</th><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
+        <thead><tr><th class="idx">#</th><th>Клиент</th><th class="num">Сумма</th><th class="td-date">Дата</th></tr></thead>
         <tbody>${rows.map((r, i) => `
           <tr>
             <td class="idx">${i + 1}</td>
             <td>${payClientHtml(r)}</td>
-            <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
-            <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
+            <td class="num pay-amt">${fmtRub(r.amount)}</td>
+            <td class="td-date">${fmtDate(r.date || '')}</td>
           </tr>`).join('')}
         </tbody>
       </table></div>`;
@@ -954,7 +954,7 @@
         <div class="pay-summary">
           <div class="pay-stat">
             <span class="pay-stat-lbl">Итого собрано</span>
-            <span class="pay-stat-val" style="color:var(--ok)">${fmtRub(p.weekTotal)}</span>
+            <span class="pay-stat-val pay-stat-val--money">${fmtRub(p.weekTotal)}</span>
           </div>
           <div class="pay-stat">
             <span class="pay-stat-lbl">Клиентов оплатили</span>
