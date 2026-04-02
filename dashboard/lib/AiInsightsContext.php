@@ -68,6 +68,28 @@ final class AiInsightsContext
         ];
     }
 
+    /**
+     * true, если по кэшу нечего рисовать (все нули / нет сегментов и менеджеров) — имеет смысл вызвать refreshCachesFromAirtable.
+     */
+    public static function chartPayloadLooksEmpty(array $charts): bool
+    {
+        $sumAging = 0.0;
+        foreach ($charts['dzAging']['values'] ?? [] as $v) {
+            $sumAging += abs((float) $v);
+        }
+        $sumSeg = 0.0;
+        foreach ($charts['churnBySegment']['values'] ?? [] as $v) {
+            $sumSeg += abs((float) $v);
+        }
+        $sumMgr = 0.0;
+        foreach ($charts['dzByManager']['values'] ?? [] as $v) {
+            $sumMgr += abs((float) $v);
+        }
+        $hasMonthly = !empty($charts['factMonthly']['labels']);
+
+        return $sumAging < 1.0 && $sumSeg < 1.0 && $sumMgr < 1.0 && !$hasMonthly;
+    }
+
     /** JSON-строка для промпта (ограниченный размер). */
     public static function promptContext(string $dir, string $airtableBaseId): string
     {

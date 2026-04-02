@@ -1,12 +1,25 @@
 <?php
 declare(strict_types=1);
+set_time_limit(0);
+
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/AiInsightsContext.php';
 require_once __DIR__ . '/lib/AiInsightsHistory.php';
 
 $c = dashboard_config();
 $baseId = (string) ($c['airtable_base_id'] ?? '');
-$charts = AiInsightsContext::chartPayload(AiInsightsContext::cacheDir(), $baseId);
+$dir = AiInsightsContext::cacheDir();
+$chartLoadError = '';
+
+$charts = AiInsightsContext::chartPayload($dir, $baseId);
+if (trim((string) ($c['airtable_pat'] ?? '')) !== '' && AiInsightsContext::chartPayloadLooksEmpty($charts)) {
+    try {
+        AiInsightsContext::refreshCachesFromAirtable($c);
+        $charts = AiInsightsContext::chartPayload($dir, $baseId);
+    } catch (Throwable $e) {
+        $chartLoadError = $e->getMessage();
+    }
+}
 $geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
 $groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
 $keyConfigured = $geminiConfigured || $groqConfigured;
@@ -56,8 +69,14 @@ $bootstrapJson = json_encode(
   <div class="ai-wrap">
     <header class="ai-hero">
       <h1>AI-аналитика</h1>
-      <p class="ai-hero-sub">Графики — по кэшу тех же данных, что и дашборды (Airtable). История снимков хранится локально в <code>cache/ai-insights-history.json</code> (не в git): после нескольких точек модель видит тренд и может делать осторожный прогноз.</p>
+      <p class="ai-hero-sub">Графики строятся из кэша отчётов (те же данные, что главная и ДЗ). Если кэш был пустой, при открытии страницы он автоматически обновляется из Airtable. История снимков — в <code>cache/ai-insights-history.json</code> (не в git).</p>
     </header>
+
+    <?php if ($chartLoadError !== ''): ?>
+    <div class="ai-banner ai-banner-warn">
+      <strong>Не удалось подгрузить данные для графиков из Airtable.</strong> <?= htmlspecialchars($chartLoadError, ENT_QUOTES, 'UTF-8') ?> Откройте сначала <a href="manager.php">ДЗ</a> или <a href="index.php">Главную</a>, либо проверьте PAT и права токена.
+    </div>
+    <?php endif; ?>
 
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
