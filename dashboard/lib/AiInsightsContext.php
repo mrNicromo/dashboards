@@ -76,11 +76,17 @@ final class AiInsightsContext
         if (!is_string($json)) {
             return '{}';
         }
-        if (strlen($json) > 120000) {
+        if (strlen($json) > 220000) {
             $bundle['note'] = 'Данные усечены по размеру.';
             $bundle['churn']['clients'] = array_slice($bundle['churn']['clients'] ?? [], 0, 12);
             $bundle['dz']['topLegal'] = array_slice($bundle['dz']['topLegal'] ?? [], 0, 8);
             $bundle['dz']['rowSamples'] = array_slice($bundle['dz']['rowSamples'] ?? [], 0, 12);
+            if (isset($bundle['factLosses']['churnLinesSample'])) {
+                $bundle['factLosses']['churnLinesSample'] = array_slice($bundle['factLosses']['churnLinesSample'], 0, 20);
+            }
+            if (isset($bundle['factLosses']['downsellLinesSample'])) {
+                $bundle['factLosses']['downsellLinesSample'] = array_slice($bundle['factLosses']['downsellLinesSample'], 0, 20);
+            }
             $json = json_encode($bundle, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
         }
         return $json;
@@ -152,18 +158,123 @@ final class AiInsightsContext
             ];
         }
 
-        $factSummary = null;
-        if ($fact !== []) {
-            $factSummary = [
-                'updatedAt' => $fact['updatedAt'] ?? null,
-                'churnYtd' => round((float) ($fact['churnYtd'] ?? 0)),
-                'downsellYtd' => round((float) ($fact['downsellYtd'] ?? 0)),
-                'totalYtd' => round((float) ($fact['totalYtd'] ?? 0)),
-                'targetTotal' => round((float) ($fact['targetTotal'] ?? 8_200_000)),
+        $factLosses = self::buildFactLossesForAi($fact);
+        $bundle = self::bundleFromParts($airtableBaseId, $inner, $kpi, $mrr, $aging, $totalDebt, $overdue, $debtToMrr, $topLegal, $rows, $churn, $churnClients, $factLosses);
+        $bundle['churn'] = array_merge($bundle['churn'], self::churnExtrasForAi($churn));
+        $bundle['dz'] = array_merge($bundle['dz'], self::dzExtrasForAi($inner));
+        $bundle['crossDashboard'] = self::loadCrossDashboardCaches($dir);
+        $bundle['source'] = 'Сводка по всем основным кэшам дашборда: ДЗ (dz-data-default), Churn (churn-report), потери YTD (churn-fact-report), плюс недельный тренд ДЗ, MRR, топ изменений долга по клиентам — те же файлы, что питают главную, ДЗ, Churn, «Потери», еженедельный отчёт.';
+
+        return $bundle;
+    }
+
+    /**
+     * Потери (факт): полная картина для LLM — помимо YTD, срезы по месяцам, продуктам, CSM, причинам, выборки строк.
+     *
+     * @param array<string, mixed> $fact
+     * @return array<string, mixed>|null
+     */
+    private static function buildFactLossesForAi(array $fact): ?array
+    {
+        if ($fact === []) {
+            return null;
+        }
+        $out = [
+            'updatedAt' => $fact['updatedAt'] ?? null,
+            'year' => $fact['year'] ?? null,
+            'churnYtd' => round((float) ($fact['churnYtd'] ?? 0)),
+            'downsellYtd' => round((float) ($fact['downsellYtd'] ?? 0)),
+            'totalYtd' => round((float) ($fact['totalYtd'] ?? 0)),
+            'entYtd' => round((float) ($fact['entYtd'] ?? 0)),
+            'smbYtd' => round((float) ($fact['smbYtd'] ?? 0)),
+            'targetTotal' => round((float) ($fact['targetTotal'] ?? 8_200_000)),
+            'targetEnt' => $fact['targetEnt'] ?? null,
+            'targetSmb' => $fact['targetSmb'] ?? null,
+            'forecastYear' => round((float) ($fact['forecastYear'] ?? 0)),
+            'forecastEnt' => round((float) ($fact['forecastEnt'] ?? 0)),
+            'forecastSmb' => round((float) ($fact['forecastSmb'] ?? 0)),
+            'devEntPct' => $fact['devEntPct'] ?? null,
+            'devSmbPct' => $fact['devSmbPct'] ?? null,
+            'byMonth' => array_slice($fact['byMonth'] ?? [], -14),
+            'byMonthSegment' => $fact['byMonthSegment'] ?? [],
+            'byProduct' => array_slice($fact['byProduct'] ?? [], 0, 25),
+            'byCsm' => array_slice($fact['byCsm'] ?? [], 0, 22),
+            'byChurnReason' => array_slice($fact['byChurnReason'] ?? [], 0, 22),
+            'byDsReason' => array_slice($fact['byDsReason'] ?? [], 0, 22),
+            'byVertical' => array_slice($fact['byVertical'] ?? [], 0, 22),
+            'churnLinesSample' => array_slice($fact['churnDetail'] ?? [], 0, 50),
+            'downsellLinesSample' => array_slice($fact['dsDetail'] ?? [], 0, 50),
+        ];
+
+        return $out;
+    }
+
+    /** @param array<string, mixed> $churn */
+    private static function churnExtrasForAi(array $churn): array
+    {
+        return [
+            'byProduct' => array_slice($churn['byProduct'] ?? [], 0, 22),
+            'byCsm' => array_slice($churn['byCsm'] ?? [], 0, 22),
+            'bySegmentProduct' => array_slice($churn['bySegmentProduct'] ?? [], 0, 28),
+            'forecast3' => round((float) ($churn['forecast3'] ?? 0)),
+            'forecast6' => round((float) ($churn['forecast6'] ?? 0)),
+            'prob3count' => (int) ($churn['prob3count'] ?? 0),
+            'entCount' => (int) ($churn['entCount'] ?? 0),
+            'entProb3' => (int) ($churn['entProb3'] ?? 0),
+            'prob3riskEnt' => round((float) ($churn['prob3riskEnt'] ?? 0)),
+            'prob3riskSmb' => round((float) ($churn['prob3riskSmb'] ?? 0)),
+        ];
+    }
+
+    /** @param array<string, mixed> $inner */
+    private static function dzExtrasForAi(array $inner): array
+    {
+        return [
+            'byStatus' => $inner['byStatus'] ?? [],
+            'byManagerFull' => array_slice($inner['byManager'] ?? [], 0, 28),
+            'byCompanyTop' => array_slice($inner['byCompany'] ?? [], 0, 22),
+        ];
+    }
+
+    /**
+     * Кэши с других экранов (weekly / manager): те же данные, что на графиках «Неделя» и таблицах трендов.
+     *
+     * @return array<string, mixed>
+     */
+    private static function loadCrossDashboardCaches(string $dir): array
+    {
+        $out = [];
+        $weekly = self::loadJson($dir . '/dz-weekly-manager.json');
+        if ($weekly !== []) {
+            $out['dzWeeklyHistory'] = $weekly['points'] ?? $weekly;
+        }
+        $mrr = self::loadJson($dir . '/mrr-manager.json');
+        if ($mrr !== []) {
+            $out['mrrSnapshot'] = [
+                'value' => $mrr['value'] ?? null,
+                'yearMonth' => $mrr['yearMonth'] ?? null,
+                'updatedAt' => $mrr['updatedAt'] ?? null,
+                'note' => $mrr['note'] ?? null,
             ];
         }
+        $ag = self::loadJson($dir . '/aging-transition-manager.json');
+        if ($ag !== []) {
+            $out['agingExtraBuckets'] = $ag;
+        }
+        $ct = self::loadJson($dir . '/client-trend-manager.json');
+        if ($ct !== [] && is_array($ct)) {
+            $top = [];
+            $n = 0;
+            foreach ($ct as $name => $delta) {
+                if ($n++ >= 40) {
+                    break;
+                }
+                $top[] = ['client' => (string) $name, 'weekDeltaRub' => round((float) $delta)];
+            }
+            $out['clientDebtWeekDeltaTop'] = $top;
+        }
 
-        return self::bundleFromParts($airtableBaseId, $inner, $kpi, $mrr, $aging, $totalDebt, $overdue, $debtToMrr, $topLegal, $rows, $churn, $churnClients, $factSummary);
+        return $out;
     }
 
     /**
@@ -200,7 +311,7 @@ final class AiInsightsContext
      * @param list<array<string, mixed>> $rows
      * @param array<string, mixed> $churn
      * @param list<array<string, mixed>> $churnClients
-     * @param array<string, mixed>|null $factSummary
+     * @param array<string, mixed>|null $factLosses
      * @return array<string, mixed>
      */
     private static function bundleFromParts(
@@ -216,7 +327,7 @@ final class AiInsightsContext
         array $rows,
         array $churn,
         array $churnClients,
-        ?array $factSummary
+        ?array $factLosses
     ): array {
         return [
             'source' => 'Кэш дашборда (те же данные, что и таблицы/графики: Airtable → отчёты ДЗ, Churn, потери выручки).',
@@ -247,10 +358,10 @@ final class AiInsightsContext
                 'clientsAtRisk' => (int) ($churn['count'] ?? 0),
                 'forecast3' => round((float) ($churn['forecast3'] ?? 0)),
                 'bySegment' => $churn['bySegment'] ?? [],
-                'byVertical' => array_slice($churn['byVertical'] ?? [], 0, 12),
+                'byVertical' => array_slice($churn['byVertical'] ?? [], 0, 18),
                 'clients' => $churnClients,
             ],
-            'factLosses' => $factSummary,
+            'factLosses' => $factLosses,
         ];
     }
 
