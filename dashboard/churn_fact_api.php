@@ -9,8 +9,8 @@ require_once __DIR__ . '/lib/Airtable.php';
 require_once __DIR__ . '/lib/ChurnReport.php';
 require_once __DIR__ . '/lib/ChurnFactReport.php';
 
-// ── CSRF проверка (M6) ────────────────────────────────────
-csrf_check();
+// ── CSRF или DASHBOARD_API_SECRET (cron / curl без сессии) ─
+csrf_check_or_api_secret();
 
 $c = dashboard_config();
 if ($c['airtable_pat'] === '') {

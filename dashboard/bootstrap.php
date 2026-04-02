@@ -33,6 +33,51 @@ function csrf_token(): string
 }
 
 /**
+ * Секрет для вызова API без браузерной сессии (Railway cron, curl).
+ * Приоритет: переменная окружения DASHBOARD_API_SECRET, затем api_secret в config.php.
+ */
+function dashboard_api_secret(): string
+{
+    $fromEnv = dashboard_env('DASHBOARD_API_SECRET');
+    if ($fromEnv !== '') {
+        return $fromEnv;
+    }
+    $c = dashboard_config();
+
+    return trim((string) ($c['api_secret'] ?? ''));
+}
+
+/**
+ * Как csrf_check(), но допускает запрос с общим секретом (если он настроен):
+ * - заголовок Authorization: Bearer &lt;secret&gt;
+ * - заголовок X-Api-Key: &lt;secret&gt;
+ * - параметр api_secret (GET/POST), напр. churn_api.php?api_secret=…
+ *
+ * Секрет в query попадает в логи — для продакшена предпочтительнее Bearer.
+ */
+function csrf_check_or_api_secret(): void
+{
+    $secret = dashboard_api_secret();
+    if ($secret !== '') {
+        $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+        if ($auth !== '' && preg_match('/Bearer\s+(\S+)/i', $auth, $m)) {
+            if (hash_equals($secret, $m[1])) {
+                return;
+            }
+        }
+        $key = (string) ($_SERVER['HTTP_X_API_KEY'] ?? '');
+        if ($key !== '' && hash_equals($secret, $key)) {
+            return;
+        }
+        $fromReq = (string) ($_GET['api_secret'] ?? $_POST['api_secret'] ?? '');
+        if ($fromReq !== '' && hash_equals($secret, $fromReq)) {
+            return;
+        }
+    }
+    csrf_check();
+}
+
+/**
  * Railway/PHP могут прокидывать env по-разному (getenv, $_ENV, $_SERVER).
  * Возвращаем первое непустое значение.
  */
@@ -73,6 +118,7 @@ function dashboard_config(): array
         'auth_username' => '',
         'auth_password' => '',
         'auth_password_hash' => '',
+        'api_secret' => '',
     ];
     $path = __DIR__ . '/config.php';
     $fromFile = (is_readable($path)) ? require $path : [];
@@ -97,6 +143,7 @@ function dashboard_config(): array
     $authUser = dashboard_env('DASHBOARD_AUTH_USERNAME') ?: ($merged['auth_username'] ?? '');
     $authPass = dashboard_env('DASHBOARD_AUTH_PASSWORD') ?: ($merged['auth_password'] ?? '');
     $authPassHash = dashboard_env('DASHBOARD_AUTH_PASSWORD_HASH') ?: ($merged['auth_password_hash'] ?? '');
+    $apiSecret    = dashboard_env('DASHBOARD_API_SECRET') ?: ($merged['api_secret'] ?? '');
 
     return [
         'airtable_pat' => trim((string) $pat),
@@ -113,6 +160,7 @@ function dashboard_config(): array
         'auth_username' => trim((string) $authUser),
         'auth_password' => (string) $authPass,
         'auth_password_hash' => trim((string) $authPassHash),
+        'api_secret' => trim((string) $apiSecret),
     ];
 }
 

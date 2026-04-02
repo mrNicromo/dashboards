@@ -31,4 +31,7 @@ return [
     // Вариант 2 (рекомендуется): хэш из password_hash('пароль', PASSWORD_DEFAULT).
     // Если задан auth_password_hash — он приоритетнее auth_password.
     'auth_password_hash' => '',
+    // Необязательно: общий секрет для вызова churn_api.php / churn_fact_api.php без CSRF
+    // (переменная окружения DASHBOARD_API_SECRET имеет приоритет). См. GUIDE.md.
+    'api_secret' => '',
 ];
