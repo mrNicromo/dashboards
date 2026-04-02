@@ -254,7 +254,7 @@ final class AiInsightsContext
         $bundle['churn'] = array_merge($bundle['churn'], self::churnExtrasForAi($churn));
         $bundle['dz'] = array_merge($bundle['dz'], self::dzExtrasForAi($inner));
         $bundle['crossDashboard'] = self::loadCrossDashboardCaches($dir);
-        $bundle['source'] = 'Перед генерацией анализа данные синхронизируются с Airtable (ДЗ, Churn) и пересчитываются отчёты; потери YTD — из Google Sheets; еженедельные тренды/MRR — через отчёт руководителя (те же пайплайны, что главная, ДЗ, Churn, «Потери», «Неделя»). Ниже — актуальный снимок после этой синхронизации.';
+        $bundle['source'] = 'Снимок из кэшей после синхронизации (где она была). В JSON могут быть не все разделы — опирайся только на непустые поля; отсутствующие блоки не выдумывай.';
 
         return $bundle;
     }
