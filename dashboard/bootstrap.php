@@ -1,6 +1,39 @@
 <?php
 declare(strict_types=1);
 
+// Корневой .env (если есть) — для локального запуска; в проде переменные задаёт веб-сервер / платформа.
+$__dotenv = dirname(__DIR__) . '/.env';
+if (is_readable($__dotenv)) {
+    $lines = file($__dotenv, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines !== false) {
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            if (!str_contains($line, '=')) {
+                continue;
+            }
+            [$k, $v] = explode('=', $line, 2);
+            $k = trim($k);
+            $v = trim($v);
+            if ($k === '') {
+                continue;
+            }
+            if (
+                strlen($v) >= 2
+                && (($v[0] === '"' && str_ends_with($v, '"')) || ($v[0] === "'" && str_ends_with($v, "'")))
+            ) {
+                $v = substr($v, 1, -1);
+            }
+            putenv($k . '=' . $v);
+            $_ENV[$k] = $v;
+            $_SERVER[$k] = $v;
+        }
+    }
+}
+unset($__dotenv, $lines, $line, $k, $v);
+
 // ── Session + CSRF (M6) ────────────────────────────────────
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
