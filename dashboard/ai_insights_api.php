@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/AiInsightsContext.php';
+require_once __DIR__ . '/lib/AiInsightsHistory.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -39,17 +40,20 @@ $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
 $system = <<<'PROMPT'
 Ты — финансовый и операционный аналитик B2B SaaS. Тебе передаётся JSON со снимком метрик дашборда AnyQuery: дебиторская задолженность (счета из Airtable), риски churn по клиентам, агрегаты по сегментам/вертикалям/CSM, при наличии — фактические потери выручки (churn + downsell) YTD.
 
+Если ниже есть блок «История сохранённых снимков», используй его для оценки тренда (рост/падение ключевых сумм). В конце ответа добавь короткий раздел «## Прогноз и риски» с осторожным сценарием на 1–3 месяца (явно укажи допущения и неопределённость; не выдавай точные числа без данных).
+
 Задача:
 1. Кратко (2–4 предложения) опиши общую картину.
 2. Выдели 4–8 проблемных зон с наибольшим бизнес-эффектом (связывай с цифрами из данных).
 3. Для каждой зоны: почему это важно, 2–4 конкретных действия (владелец/роль, срок «на этой неделе» / «в месяц»).
-4. В конце — 3 приоритета на ближайшие 2 недели.
+4. В конце основного раздела — 3 приоритета на ближайшие 2 недели.
 
-Пиши по-русски, деловым но понятным языком. Не выдумывай цифры: опирайся только на поля JSON. Если какого-то блока нет — честно скажи, что данных в снимке нет.
+Пиши по-русски, деловым но понятным языком. Не выдумывай цифры: опирайся только на поля JSON и историю снимков. Если какого-то блока нет — честно скажи, что данных в снимке нет.
 Формат ответа: Markdown с заголовками ## и ###, списками, без таблиц в pipe-синтаксисе (таблицы не нужны).
 PROMPT;
 
-$user = "Данные для анализа (JSON):\n```json\n" . $ctxJson . "\n```";
+$historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
+$user = "Текущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (для тренда и прогноза)\n" . $historyBlock;
 
 $gen = ai_insights_gemini_generate($key, $system, $user);
 if (!$gen['ok']) {
@@ -62,7 +66,17 @@ if (!$gen['ok']) {
 }
 $text = $gen['text'];
 
-echo json_encode(['ok' => true, 'text' => $text], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+$metrics = AiInsightsContext::metricsSnapshot($dir, $baseId);
+AiInsightsHistory::appendWithAnalysis($metrics, $text);
+$hist = AiInsightsHistory::load();
+$histCount = is_array($hist['items'] ?? null) ? count($hist['items']) : 0;
+
+echo json_encode([
+    'ok' => true,
+    'text' => $text,
+    'historyCount' => $histCount,
+    'historyChart' => AiInsightsHistory::chartSeries(56),
+], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
 /**
  * @return array{ok:bool, text?: string, error?: string}

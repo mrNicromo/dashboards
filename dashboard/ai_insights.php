@@ -2,14 +2,20 @@
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/AiInsightsContext.php';
+require_once __DIR__ . '/lib/AiInsightsHistory.php';
 
 $c = dashboard_config();
 $baseId = (string) ($c['airtable_base_id'] ?? '');
 $charts = AiInsightsContext::chartPayload(AiInsightsContext::cacheDir(), $baseId);
 $keyConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? ''))) !== '';
+$historyChart = AiInsightsHistory::chartSeries(56);
+$hist = AiInsightsHistory::load();
+$historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
 $bootstrapJson = json_encode(
     [
         'charts' => $charts,
+        'historyChart' => $historyChart,
+        'historyCount' => $historyCount,
         'hasGeminiKey' => $keyConfigured,
         'csrf' => csrf_token(),
     ],
@@ -24,7 +30,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=1">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=2">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -48,7 +54,7 @@ $bootstrapJson = json_encode(
   <div class="ai-wrap">
     <header class="ai-hero">
       <h1>AI-аналитика</h1>
-      <p class="ai-hero-sub">Графики — по кэшу тех же данных, что и дашборды (Airtable). Текст — выводы и рекомендации на основе снимка метрик (ДЗ, churn, потери).</p>
+      <p class="ai-hero-sub">Графики — по кэшу тех же данных, что и дашборды (Airtable). История снимков хранится локально в <code>cache/ai-insights-history.json</code> (не в git): после нескольких точек модель видит тренд и может делать осторожный прогноз.</p>
     </header>
 
     <?php if (!$keyConfigured): ?>
@@ -56,6 +62,13 @@ $bootstrapJson = json_encode(
       <strong>Ключ Google AI не настроен.</strong> Задайте переменную окружения <code>DASHBOARD_GEMINI_API_KEY</code> или поле <code>gemini_api_key</code> в <code>config.php</code>. Ключ не храните в git.
     </div>
     <?php endif; ?>
+
+    <section class="ai-card ai-card-wide" id="ai-card-history-wrap">
+      <h2>История снимков (тренд)</h2>
+      <p class="ai-card-hint">Каждая точка — сохранённые метрики. Сохраняется автоматически после «Сгенерировать анализ»; можно добавить точку без AI — «Записать снимок метрик». Всего в истории: <strong id="ai-history-count"><?= (int) $historyCount ?></strong>.</p>
+      <p class="ai-card-hint ai-history-empty" id="ai-history-empty" <?= $historyCount > 0 ? 'hidden' : '' ?>>Пока нет сохранённых снимков — нажмите «Записать снимок метрик» или сгенерируйте анализ.</p>
+      <div class="ai-canvas-wrap ai-canvas-tall" id="ai-history-canvas-wrap" <?= $historyCount > 0 ? '' : 'hidden' ?>><canvas id="chart-history" aria-label="Динамика метрик по сохранённым снимкам"></canvas></div>
+    </section>
 
     <div class="ai-chart-grid">
       <section class="ai-card">
@@ -83,9 +96,12 @@ $bootstrapJson = json_encode(
     <section class="ai-card ai-insight-card">
       <div class="ai-insight-head">
         <h2>Выводы и решения</h2>
-        <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
+        <div class="ai-insight-actions">
+          <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" title="Сохранить текущие метрики в историю без вызова AI">Записать снимок метрик</button>
+          <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
+        </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">Нажмите кнопку — модель получит структурированный JSON из кэша (без повторной загрузки всей базы).</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — JSON из кэша + история снимков → Gemini; ответ и метрики дописываются в историю. «Записать снимок» — только метрики (для графика тренда).</p>
       <div class="ai-markdown" id="ai-output" hidden></div>
     </section>
   </div>
@@ -94,7 +110,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=1" defer></script>
+  <script src="assets/ai_insights.js?v=2" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

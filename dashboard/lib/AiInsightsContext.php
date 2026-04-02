@@ -163,6 +163,61 @@ final class AiInsightsContext
             ];
         }
 
+        return self::bundleFromParts($airtableBaseId, $inner, $kpi, $mrr, $aging, $totalDebt, $overdue, $debtToMrr, $topLegal, $rows, $churn, $churnClients, $factSummary);
+    }
+
+    /**
+     * Компактные числа для истории снимков (без длинных списков клиентов).
+     *
+     * @return array<string, mixed>
+     */
+    public static function metricsSnapshot(string $dir, string $airtableBaseId): array
+    {
+        $b = self::buildBundle($dir, $airtableBaseId);
+        $dz = $b['dz'] ?? [];
+        $k = $dz['kpi'] ?? [];
+        $ag = $dz['aging'] ?? [];
+        $ch = $b['churn'] ?? [];
+        $f = $b['factLosses'] ?? null;
+        return [
+            'dzTotal' => (int) round((float) ($k['totalDebt'] ?? 0)),
+            'dzOverdue' => (int) round((float) ($k['overdueDebt'] ?? 0)),
+            'debtToMrrPct' => $k['debtToMrrPct'] ?? null,
+            'aging90p' => (int) round((float) ($ag['90+'] ?? 0)),
+            'churnRisk' => (int) round((float) ($ch['totalRiskMrr'] ?? 0)),
+            'churnProb3' => (int) round((float) ($ch['prob3Mrr'] ?? 0)),
+            'churnClients' => (int) ($ch['clientsAtRisk'] ?? 0),
+            'factTotalYtd' => is_array($f) ? (int) round((float) ($f['totalYtd'] ?? 0)) : null,
+            'factChurnYtd' => is_array($f) ? (int) round((float) ($f['churnYtd'] ?? 0)) : null,
+            'factDownsellYtd' => is_array($f) ? (int) round((float) ($f['downsellYtd'] ?? 0)) : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $inner
+     * @param array<string, mixed> $kpi
+     * @param list<array<string, mixed>> $topLegal
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, mixed> $churn
+     * @param list<array<string, mixed>> $churnClients
+     * @param array<string, mixed>|null $factSummary
+     * @return array<string, mixed>
+     */
+    private static function bundleFromParts(
+        string $airtableBaseId,
+        array $inner,
+        array $kpi,
+        float $mrr,
+        array $aging,
+        float $totalDebt,
+        float $overdue,
+        ?float $debtToMrr,
+        array $topLegal,
+        array $rows,
+        array $churn,
+        array $churnClients,
+        ?array $factSummary
+    ): array {
         return [
             'source' => 'Кэш дашборда (те же данные, что и таблицы/графики: Airtable → отчёты ДЗ, Churn, потери выручки).',
             'airtableBaseId' => $airtableBaseId,

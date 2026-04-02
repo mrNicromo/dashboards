@@ -28,6 +28,7 @@
   }
 
   let chartInstances = [];
+  let historyChartInstance = null;
 
   function destroyCharts() {
     chartInstances.forEach((c) => {
@@ -36,6 +37,120 @@
       } catch (_) {}
     });
     chartInstances = [];
+  }
+
+  function destroyHistoryChart() {
+    if (historyChartInstance) {
+      try {
+        historyChartInstance.destroy();
+      } catch (_) {}
+      historyChartInstance = null;
+    }
+  }
+
+  function updateHistoryUi(count, hasSeries) {
+    const cnt = document.getElementById('ai-history-count');
+    const empty = document.getElementById('ai-history-empty');
+    const wrap = document.getElementById('ai-history-canvas-wrap');
+    if (cnt) cnt.textContent = String(count);
+    if (empty) empty.hidden = hasSeries && count > 0;
+    if (wrap) wrap.hidden = !(hasSeries && count > 0);
+  }
+
+  function buildHistoryChart(hc) {
+    destroyHistoryChart();
+    const canvas = document.getElementById('chart-history');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const labels = hc?.labels || [];
+    const count = hc?.count ?? labels.length;
+    const hasSeries = labels.length > 0;
+    updateHistoryUi(count, hasSeries);
+    if (!hasSeries) return;
+
+    const pal = chartPalette();
+    const grid = cssVar('--border', 'rgba(128,128,128,.2)');
+    const text = cssVar('--text', '#e8edf4');
+    const muted = cssVar('--muted', '#8b97a8');
+
+    const fy = hc.factTotalYtd || [];
+    const hasFact = fy.some((v) => v != null && !Number.isNaN(v));
+
+    const datasets = [
+      {
+        label: 'ДЗ всего',
+        data: hc.dzTotal || [],
+        borderColor: pal[0],
+        backgroundColor: pal[0] + '22',
+        tension: 0.2,
+        fill: false,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Churn риск MRR',
+        data: hc.churnRisk || [],
+        borderColor: pal[1],
+        backgroundColor: pal[1] + '22',
+        tension: 0.2,
+        fill: false,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Prob=3 MRR',
+        data: hc.churnProb3 || [],
+        borderColor: pal[2],
+        backgroundColor: pal[2] + '22',
+        tension: 0.2,
+        fill: false,
+        yAxisID: 'y',
+      },
+    ];
+    if (hasFact) {
+      datasets.push({
+        label: 'Потери YTD',
+        data: fy.map((v) => (v == null ? null : v)),
+        borderColor: pal[3],
+        backgroundColor: pal[3] + '22',
+        tension: 0.2,
+        fill: false,
+        yAxisID: 'y1',
+        spanGaps: true,
+      });
+    }
+
+    const scales = {
+      x: {
+        ticks: { color: muted, maxRotation: 45 },
+        grid: { color: grid },
+      },
+      y: {
+        position: 'left',
+        ticks: { color: muted },
+        grid: { color: grid },
+        title: { display: true, text: '₽', color: muted, font: { size: 10 } },
+      },
+    };
+    if (hasFact) {
+      scales.y1 = {
+        position: 'right',
+        ticks: { color: muted },
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: 'YTD ₽', color: muted, font: { size: 10 } },
+      };
+    }
+
+    historyChartInstance = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: text, font: { size: 11 } } },
+        },
+        scales,
+      },
+    });
   }
 
   function buildCharts(payload) {
@@ -68,7 +183,7 @@
               {
                 label: '₽',
                 data: aging.values,
-                backgroundColor: pal.map((c, i) => c + '99'),
+                backgroundColor: pal.map((c) => c + '99'),
                 borderColor: pal,
                 borderWidth: 1,
               },
@@ -183,6 +298,17 @@
     }
   }
 
+  function mergeBootstrapHistory(historyChart, historyCount) {
+    const raw = document.getElementById('ai-bootstrap');
+    if (!raw) return;
+    try {
+      const p = JSON.parse(raw.textContent || '{}');
+      if (historyChart) p.historyChart = historyChart;
+      if (historyCount != null) p.historyCount = historyCount;
+      raw.textContent = JSON.stringify(p);
+    } catch (_) {}
+  }
+
   function syncThemeBtn() {
     const root = document.getElementById('html-root');
     const btn = document.getElementById('btn-theme');
@@ -210,6 +336,7 @@
         try {
           const payload = JSON.parse(raw.textContent || '{}');
           buildCharts(payload);
+          buildHistoryChart(payload.historyChart);
         } catch (_) {}
       }
     });
@@ -233,7 +360,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     btn.disabled = true;
-    st.textContent = 'Запрос к модели… (до 1–2 мин при большом контексте)';
+    st.textContent = 'Запрос к модели… (история снимков добавлена в контекст)';
     st.className = 'ai-card-hint';
     try {
       const r = await fetch('ai_insights_api.php', {
@@ -250,9 +377,50 @@
         st.classList.add('ai-status-err');
         return;
       }
-      st.textContent = 'Готово.';
+      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.';
       st.classList.add('ai-status-ok');
       renderMarkdown(j.text || '');
+      if (j.historyChart) {
+        buildHistoryChart(j.historyChart);
+        mergeBootstrapHistory(j.historyChart, j.historyCount);
+      }
+    } catch (e) {
+      st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
+      st.classList.add('ai-status-err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function saveSnapshot() {
+    const btn = document.getElementById('btn-snapshot');
+    const st = document.getElementById('ai-status');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (!btn || !st) return;
+    btn.disabled = true;
+    st.textContent = 'Сохранение снимка…';
+    st.className = 'ai-card-hint';
+    try {
+      const r = await fetch('ai_insights_snapshot_api.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf,
+        },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        st.textContent = j.error || 'Ошибка';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—') + '.';
+      st.classList.add('ai-status-ok');
+      if (j.historyChart) {
+        buildHistoryChart(j.historyChart);
+        mergeBootstrapHistory(j.historyChart, j.historyCount);
+      }
     } catch (e) {
       st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
       st.classList.add('ai-status-err');
@@ -269,9 +437,15 @@
       payload = JSON.parse(raw.textContent || '{}');
     } catch (_) {}
     buildCharts(payload);
+    if (payload.historyChart && payload.historyChart.labels && payload.historyChart.labels.length) {
+      buildHistoryChart(payload.historyChart);
+    } else {
+      updateHistoryUi(payload.historyCount || 0, false);
+    }
     bindTheme();
 
     document.getElementById('btn-generate')?.addEventListener('click', generate);
+    document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
   }
 
   if (document.readyState === 'loading') {

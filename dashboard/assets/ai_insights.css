@@ -158,6 +158,22 @@
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+.ai-insight-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ai-btn-secondary {
+  background: var(--elevated) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  font-weight: 500 !important;
+}
+.ai-btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
 .ai-btn-primary {
   background: var(--accent) !important;
   color: #fff !important;
