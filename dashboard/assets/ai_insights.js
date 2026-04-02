@@ -29,6 +29,8 @@
 
   let chartInstances = [];
   let historyChartInstance = null;
+  /** Сырой markdown последнего успешного ответа (копирование/скачивание). */
+  let lastMarkdownRaw = '';
 
   function destroyCharts() {
     chartInstances.forEach((c) => {
@@ -371,7 +373,7 @@
       syncEl.hidden = false;
     }
     try {
-      const r = await fetch('ai_insights_charts_api.php', {
+      const r = await fetch('ai_insights_refresh_api.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -449,6 +451,61 @@
     syncThemeBtn();
   }
 
+  const LS_KEY = 'aq_ai_insights_last_v1';
+  const COLLAPSE_LEN = 12000;
+
+  function persistLastAnalysis(text, meta) {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ text, savedAt: Date.now(), ...meta }));
+    } catch (_) {}
+  }
+
+  function loadLastAnalysis() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyNumberWarnings(warnings) {
+    const el = document.getElementById('ai-number-warn');
+    if (!el) return;
+    if (!warnings || !warnings.length) {
+      el.hidden = true;
+      el.innerHTML = '';
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML =
+      '<strong>Проверка чисел (эвристика):</strong> возможны ложные срабатывания.<ul>' +
+      warnings.map((w) => '<li>' + esc(w) + '</li>').join('') +
+      '</ul>';
+  }
+
+  function afterRenderAdjustLayout(text) {
+    const t = String(text || '');
+    const long = t.length >= COLLAPSE_LEN;
+    const wrap = document.getElementById('ai-output-wrap');
+    const btn = document.getElementById('btn-ai-expand');
+    if (!wrap || !btn) return;
+    if (!long) {
+      wrap.classList.add('ai-output-expanded');
+      btn.hidden = true;
+      return;
+    }
+    wrap.classList.remove('ai-output-expanded');
+    btn.hidden = false;
+    btn.textContent = 'Развернуть полностью';
+  }
+
+  function showOutputToolbar(show) {
+    const tb = document.getElementById('ai-output-toolbar');
+    if (tb) tb.hidden = !show;
+  }
+
   function renderMarkdown(text) {
     const out = document.getElementById('ai-output');
     if (!out) return;
@@ -458,18 +515,23 @@
     } else {
       out.innerHTML = '<pre style="white-space:pre-wrap;margin:0">' + esc(text) + '</pre>';
     }
+    afterRenderAdjustLayout(text);
   }
 
   async function generate() {
     const btn = document.getElementById('btn-generate');
+    const snap = document.getElementById('btn-snapshot');
     const st = document.getElementById('ai-status');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     btn.disabled = true;
-    st.textContent = 'Синхронизация с Airtable и запрос к модели…';
+    if (snap) snap.disabled = true;
+    st.textContent = '1/2 Синхронизация с Airtable (API)…';
     st.className = 'ai-card-hint';
+    showOutputToolbar(false);
+    applyNumberWarnings([]);
     try {
-      const r = await fetch('ai_insights_api.php', {
+      const r1 = await fetch('ai_insights_refresh_api.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -477,24 +539,80 @@
         },
         body: JSON.stringify({}),
       });
+      let j1 = {};
+      try {
+        j1 = await r1.json();
+      } catch (_) {
+        st.textContent = 'Ответ синхронизации не JSON (HTTP ' + r1.status + ').';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (!j1.ok) {
+        st.textContent =
+          j1.error ||
+          (r1.status === 423
+            ? 'Другая операция уже выполняется.'
+            : r1.status === 429
+              ? 'Слишком много запросов. Подождите.'
+              : 'Ошибка синхронизации');
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (j1.charts) {
+        mergeBootstrapCharts(j1.charts, j1.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) {
+          try {
+            next = JSON.parse(raw.textContent || '{}');
+          } catch (_) {}
+        }
+        buildCharts(next);
+        applyChartHints(next);
+      }
+
+      st.textContent = '2/2 Запрос к модели…';
+      const r2 = await fetch('ai_insights_api.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf,
+        },
+        body: JSON.stringify({ skipRefresh: true }),
+      });
       let j = {};
       try {
-        j = await r.json();
+        j = await r2.json();
       } catch (parseErr) {
-        st.textContent = 'Ответ сервера не JSON (HTTP ' + r.status + '). Проверьте деплой и логи.';
+        st.textContent = 'Ответ сервера не JSON (HTTP ' + r2.status + '). Проверьте деплой и логи.';
         st.classList.add('ai-status-err');
         return;
       }
       if (!j.ok) {
-        st.textContent = j.error || 'Ошибка';
+        st.textContent =
+          j.error ||
+          (r2.status === 423
+            ? 'Другая операция уже выполняется.'
+            : r2.status === 429
+              ? 'Лимит запросов к модели. Подождите.'
+              : 'Ошибка');
         st.classList.add('ai-status-err');
         return;
       }
-      const prov = j.provider ? ' · ' + j.provider : '';
-      const fresh = j.dataRefreshedFromAirtable
-        ? ' Снимок для анализа собран запросами к API (Airtable/отчёты).'
-        : '';
-      st.textContent = 'Готово. В истории снимков: ' + (j.historyCount ?? '—') + '.' + prov + fresh;
+      const prov = j.provider ? j.provider : '';
+      const lm = j.llmModel ? ' · ' + j.llmModel : '';
+      const tm =
+        j.refreshMs != null && j.llmMs != null
+          ? ' · sync ' + j.refreshMs + ' ms · LLM ' + j.llmMs + ' ms'
+          : '';
+      st.textContent =
+        'Готово. В истории снимков: ' +
+        (j.historyCount ?? '—') +
+        '. ' +
+        prov +
+        lm +
+        tm +
+        ' Графики соответствуют этому же снимку.';
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
 
@@ -514,7 +632,17 @@
       const txt = String(j.text || '').trim();
       if (txt) {
         st.classList.remove('ai-status-err');
+        lastMarkdownRaw = String(j.text || '');
         renderMarkdown(j.text);
+        applyNumberWarnings(j.numberWarnings || []);
+        persistLastAnalysis(j.text, {
+          promptVersion: j.promptVersion,
+          llmModel: j.llmModel,
+          provider: j.provider,
+        });
+        showOutputToolbar(true);
+        const rw = document.getElementById('ai-restore-wrap');
+        if (rw) rw.hidden = true;
       } else {
         const out = document.getElementById('ai-output');
         if (out) {
@@ -525,6 +653,8 @@
         st.textContent += ' Пустой ответ модели.';
         st.classList.remove('ai-status-ok');
         st.classList.add('ai-status-err');
+        applyNumberWarnings([]);
+        showOutputToolbar(false);
       }
       if (j.historyChart) {
         buildHistoryChart(j.historyChart);
@@ -535,6 +665,7 @@
       st.classList.add('ai-status-err');
     } finally {
       btn.disabled = false;
+      if (snap) snap.disabled = false;
     }
   }
 
@@ -596,6 +727,55 @@
 
     if (payload.chartsNeedAsyncRefresh) {
       refreshChartsFromApi(payload);
+    }
+
+    document.getElementById('btn-ai-expand')?.addEventListener('click', () => {
+      const wrap = document.getElementById('ai-output-wrap');
+      const btn = document.getElementById('btn-ai-expand');
+      if (!wrap || !btn || btn.hidden) return;
+      const ex = wrap.classList.toggle('ai-output-expanded');
+      btn.textContent = ex ? 'Свернуть' : 'Развернуть полностью';
+    });
+
+    document.getElementById('btn-ai-copy')?.addEventListener('click', async () => {
+      const raw = lastMarkdownRaw || '';
+      if (!raw.trim()) return;
+      try {
+        await navigator.clipboard.writeText(raw);
+        const stEl = document.getElementById('ai-status');
+        if (stEl) {
+          stEl.textContent = 'Markdown скопирован в буфер.';
+          stEl.classList.add('ai-status-ok');
+        }
+      } catch (_) {}
+    });
+
+    document.getElementById('btn-ai-dl')?.addEventListener('click', () => {
+      const raw = lastMarkdownRaw || '';
+      if (!raw.trim()) return;
+      const blob = new Blob([raw], { type: 'text/markdown;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'ai-insights-' + new Date().toISOString().slice(0, 10) + '.md';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    const last = loadLastAnalysis();
+    const restoreWrap = document.getElementById('ai-restore-wrap');
+    if (last && last.text && restoreWrap) {
+      restoreWrap.hidden = false;
+      document.getElementById('btn-ai-restore')?.addEventListener('click', () => {
+        lastMarkdownRaw = String(last.text || '');
+        renderMarkdown(last.text);
+        showOutputToolbar(true);
+        restoreWrap.hidden = true;
+        const stEl = document.getElementById('ai-status');
+        if (stEl) {
+          stEl.textContent = 'Показан сохранённый локально анализ (не новый запрос к серверу).';
+          stEl.className = 'ai-card-hint';
+        }
+      });
     }
   }
 

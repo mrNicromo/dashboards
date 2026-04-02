@@ -4,6 +4,7 @@ declare(strict_types=1);
 set_time_limit(0);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/AiInsightsSupport.php';
 require_once __DIR__ . '/lib/AiInsightsContext.php';
 require_once __DIR__ . '/lib/AiInsightsHistory.php';
 
@@ -17,6 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 csrf_check();
+
+$bodyIn = json_decode(file_get_contents('php://input') ?: '{}', true);
+$skipRefresh = is_array($bodyIn) && !empty($bodyIn['skipRefresh']);
 
 $c = dashboard_config();
 $geminiKey = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: ($c['gemini_api_key'] ?? '')));
@@ -35,7 +39,7 @@ if (trim((string) ($c['airtable_pat'] ?? '')) === '') {
     http_response_code(400);
     echo json_encode([
         'ok' => false,
-        'error' => 'Задайте AIRTABLE_PAT — перед анализом подтягиваются свежие данные из Airtable.',
+        'error' => 'Задайте AIRTABLE_PAT — для анализа нужны данные из Airtable.',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -47,23 +51,60 @@ if (!is_dir($dir)) {
     exit;
 }
 
-// Перед каждым анализом — живые запросы к Airtable и пайплайнам отчётов (DzReport, Churn, потери/Sheets, Manager).
-// JSON для модели не читается «как есть» с диска без синхронизации: сначала refreshCachesFromAirtable (см. lib).
-try {
-    AiInsightsContext::refreshCachesFromAirtable($c);
-} catch (Throwable $e) {
-    http_response_code(502);
-    echo json_encode([
-        'ok' => false,
-        'error' => 'Не удалось загрузить данные из Airtable / отчётов: ' . $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE);
+$lock = AiInsightsSupport::tryAcquireLock($dir);
+if ($lock === null) {
+    http_response_code(423);
+    echo json_encode(['ok' => false, 'error' => 'Уже выполняется другая операция (синхронизация или анализ). Подождите.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+if ($lock === false) {
+    http_response_code(503);
+    echo json_encode(['ok' => false, 'error' => 'Не удалось создать блокировку.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-$baseId = (string) ($c['airtable_base_id'] ?? '');
-$ctxJson = AiInsightsContext::promptContext($dir, $baseId);
+$refreshMs = 0;
+$didRefresh = false;
 
-$system = <<<'PROMPT'
+try {
+    if (!$skipRefresh) {
+        $rl = AiInsightsSupport::checkRateLimit($dir, 'refresh', AiInsightsSupport::maxRefreshPerHour());
+        if ($rl !== null) {
+            AiInsightsSupport::releaseLock();
+            http_response_code(429);
+            echo json_encode(['ok' => false, 'error' => $rl, 'promptVersion' => AiInsightsSupport::PROMPT_VERSION], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        try {
+            $pipe = AiInsightsSupport::executeRefreshPipeline($c);
+            $refreshMs = $pipe['refreshMs'];
+            $didRefresh = true;
+        } catch (Throwable $e) {
+            AiInsightsSupport::releaseLock();
+            AiInsightsSupport::logLine('refresh_fail', ['err' => $e->getMessage(), 'where' => 'ai_insights_api']);
+            http_response_code(502);
+            echo json_encode([
+                'ok' => false,
+                'error' => AiInsightsSupport::mapFetchError($e->getMessage()),
+                'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
+    $rlLlm = AiInsightsSupport::checkRateLimit($dir, 'llm', AiInsightsSupport::maxLlmPerHour());
+    if ($rlLlm !== null) {
+        AiInsightsSupport::releaseLock();
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => $rlLlm, 'promptVersion' => AiInsightsSupport::PROMPT_VERSION], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $baseId = (string) ($c['airtable_base_id'] ?? '');
+    $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
+    $ctxBytes = strlen($ctxJson);
+
+    $system = <<<'PROMPT'
 Ты — финансовый и операционный аналитик B2B SaaS.
 
 Главное правило: анализируй **только то, что реально присутствует в JSON** ниже. Не дополняй снимок выдуманными метриками, не ссылайся на «типичные» показатели, не описывай разделы дашборда (ДЗ, churn, потери, недели), если для них в JSON нет непустых полей или они сведены к нулю/пустым массивам без содержательных чисел. Пустые или отсутствующие блоки **пропускай** или один раз напиши: «В снимке нет данных по …» — без заполнения фантазией.
@@ -87,71 +128,113 @@ $system = <<<'PROMPT'
 Пиши по-русски. Формат: Markdown, без таблиц в pipe-синтаксисе.
 PROMPT;
 
-$historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
-$liveNote = "\n\n(Служебно: этот JSON собран **сразу перед этим запросом** — сервер вызвал Airtable API и связанные отчёты (Sheets для потерь и т.д.), затем сформировал снимок. Это не «произвольное чтение старого кэша без запросов».)";
-$user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote;
+    $historyBlock = AiInsightsHistory::buildTrendPromptSection(32);
+    $liveNote = "\n\n(Служебно: этот JSON собран **сразу перед этим запросом** — сервер вызвал Airtable API и связанные отчёты (Sheets для потерь и т.д.), затем сформировал снимок. Это не «произвольное чтение старого кэша без запросов».)";
+    $user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote;
 
-$gen = null;
-$provider = null;
-$lastErr = '';
+    $gen = null;
+    $provider = null;
+    $lastErr = '';
+    $llmModelId = '';
 
-if ($geminiKey !== '') {
-    $gen = ai_insights_gemini_generate($geminiKey, $system, $user);
-    if ($gen['ok']) {
-        $provider = 'gemini';
-    } else {
-        $lastErr = (string) ($gen['error'] ?? '');
-        $httpCode = (int) ($gen['httpCode'] ?? 0);
-        if ($groqKey !== '' && ai_insights_should_fallback_to_groq($lastErr, $httpCode)) {
-            $gen = ai_insights_groq_generate($groqKey, $system, $user);
-            if ($gen['ok']) {
-                $provider = 'groq';
-            } else {
-                $lastErr = (string) ($gen['error'] ?? $lastErr);
+    $tLlm0 = microtime(true);
+
+    if ($geminiKey !== '') {
+        $gen = ai_insights_gemini_generate($geminiKey, $system, $user);
+        if ($gen['ok']) {
+            $provider = 'gemini';
+            $llmModelId = (string) ($gen['modelId'] ?? 'gemini-2.0-flash');
+        } else {
+            $lastErr = (string) ($gen['error'] ?? '');
+            $httpCode = (int) ($gen['httpCode'] ?? 0);
+            if ($groqKey !== '' && ai_insights_should_fallback_to_groq($lastErr, $httpCode)) {
+                $gen = ai_insights_groq_generate($groqKey, $system, $user);
+                if ($gen['ok']) {
+                    $provider = 'groq';
+                    $llmModelId = (string) ($gen['modelId'] ?? 'llama-3.3-70b-versatile');
+                } else {
+                    $lastErr = (string) ($gen['error'] ?? $lastErr);
+                }
             }
         }
     }
-}
 
-if ($provider === null && $groqKey !== '' && ($geminiKey === '' || !($gen['ok'] ?? false))) {
-    if ($geminiKey === '') {
-        $gen = ai_insights_groq_generate($groqKey, $system, $user);
-        if ($gen['ok']) {
-            $provider = 'groq';
-        } else {
-            $lastErr = (string) ($gen['error'] ?? '');
+    if ($provider === null && $groqKey !== '' && ($geminiKey === '' || !($gen['ok'] ?? false))) {
+        if ($geminiKey === '') {
+            $gen = ai_insights_groq_generate($groqKey, $system, $user);
+            if ($gen['ok']) {
+                $provider = 'groq';
+                $llmModelId = (string) ($gen['modelId'] ?? 'llama-3.3-70b-versatile');
+            } else {
+                $lastErr = (string) ($gen['error'] ?? '');
+            }
         }
     }
+
+    $llmMs = (int) round((microtime(true) - $tLlm0) * 1000);
+
+    if ($provider === null || !($gen['ok'] ?? false)) {
+        AiInsightsSupport::releaseLock();
+        http_response_code(502);
+        echo json_encode([
+            'ok' => false,
+            'error' => $lastErr !== '' ? $lastErr : ($gen['error'] ?? 'Не удалось получить ответ от AI.'),
+            'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $text = $gen['text'];
+    $numberWarnings = AiInsightsSupport::verifyNumbersAgainstJson($text, $ctxJson);
+
+    $metrics = AiInsightsContext::metricsSnapshot($dir, $baseId);
+    AiInsightsHistory::appendWithAnalysis($metrics, $text);
+    $hist = AiInsightsHistory::load();
+    $histCount = is_array($hist['items'] ?? null) ? count($hist['items']) : 0;
+
+    $chartsOut = AiInsightsContext::chartPayload($dir, $baseId);
+
+    AiInsightsSupport::logLine('llm_ok', [
+        'refreshMs' => $refreshMs,
+        'llmMs' => $llmMs,
+        'provider' => $provider,
+        'ctxBytes' => $ctxBytes,
+        'skipRefresh' => $skipRefresh,
+    ]);
+
+    $response = [
+        'ok' => true,
+        'text' => $text,
+        'provider' => $provider,
+        'llmModel' => $llmModelId,
+        'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
+        'refreshMs' => $refreshMs,
+        'llmMs' => $llmMs,
+        'refreshSkipped' => $skipRefresh,
+        'dataRefreshedFromAirtable' => $didRefresh || $skipRefresh,
+        'usedRecentCache' => false,
+        'numberWarnings' => $numberWarnings,
+        'historyCount' => $histCount,
+        'historyChart' => AiInsightsHistory::chartSeries(56),
+        'charts' => $chartsOut,
+        'chartHints' => AiInsightsContext::chartHintsFromCharts($chartsOut),
+    ];
+
+    if (AiInsightsSupport::debugAiEnabled()) {
+        $response['debug'] = [
+            'ctxBytes' => $ctxBytes,
+            'numberWarningsCount' => count($numberWarnings),
+        ];
+    }
+
+    AiInsightsSupport::releaseLock();
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+} catch (Throwable $e) {
+    AiInsightsSupport::releaseLock();
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'Внутренняя ошибка: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
 }
-
-if ($provider === null || !($gen['ok'] ?? false)) {
-    http_response_code(502);
-    echo json_encode([
-        'ok' => false,
-        'error' => $lastErr !== '' ? $lastErr : ($gen['error'] ?? 'Не удалось получить ответ от AI.'),
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-$text = $gen['text'];
-
-$metrics = AiInsightsContext::metricsSnapshot($dir, $baseId);
-AiInsightsHistory::appendWithAnalysis($metrics, $text);
-$hist = AiInsightsHistory::load();
-$histCount = is_array($hist['items'] ?? null) ? count($hist['items']) : 0;
-
-$chartsOut = AiInsightsContext::chartPayload($dir, $baseId);
-echo json_encode([
-    'ok' => true,
-    'text' => $text,
-    'provider' => $provider,
-    'dataRefreshedFromAirtable' => true,
-    'usedRecentCache' => false,
-    'historyCount' => $histCount,
-    'historyChart' => AiInsightsHistory::chartSeries(56),
-    'charts' => $chartsOut,
-    'chartHints' => AiInsightsContext::chartHintsFromCharts($chartsOut),
-], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
 /**
  * Резерв при лимите/квоте Gemini, а также при неверном ключе / отказе доступа (тогда пробуем Groq).
@@ -174,11 +257,12 @@ function ai_insights_should_fallback_to_groq(string $errorMessage, int $httpCode
             return true;
         }
     }
+
     return false;
 }
 
 /**
- * @return array{ok:bool, text?: string, error?: string, httpCode?: int}
+ * @return array{ok:bool, text?: string, error?: string, httpCode?: int, modelId?: string}
  */
 function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, string $userText): array
 {
@@ -229,6 +313,7 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
     $parts = $j['candidates'][0]['content']['parts'] ?? null;
     if (!is_array($parts)) {
         $fr = $j['candidates'][0]['finishReason'] ?? '';
+
         return ['ok' => false, 'error' => 'Пустой ответ модели' . ($fr !== '' ? ' (' . $fr . ')' : ''), 'httpCode' => $code];
     }
     $out = '';
@@ -240,13 +325,14 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
     if ($out === '') {
         return ['ok' => false, 'error' => 'Модель вернула пустой текст', 'httpCode' => $code];
     }
-    return ['ok' => true, 'text' => $out, 'httpCode' => $code];
+
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => $model];
 }
 
 /**
  * Groq — OpenAI-совместимый API (ключ gsk_…).
  *
- * @return array{ok:bool, text?: string, error?: string, httpCode?: int}
+ * @return array{ok:bool, text?: string, error?: string, httpCode?: int, modelId?: string}
  */
 function ai_insights_groq_generate(string $apiKey, string $systemInstruction, string $userText): array
 {
@@ -290,11 +376,13 @@ function ai_insights_groq_generate(string $apiKey, string $systemInstruction, st
     }
     if ($code >= 400) {
         $msg = isset($j['error']['message']) ? (string) $j['error']['message'] : 'HTTP ' . $code;
+
         return ['ok' => false, 'error' => 'Groq: ' . $msg, 'httpCode' => $code];
     }
     $out = (string) ($j['choices'][0]['message']['content'] ?? '');
     if ($out === '') {
         return ['ok' => false, 'error' => 'Groq: пустой ответ', 'httpCode' => $code];
     }
-    return ['ok' => true, 'text' => $out, 'httpCode' => $code];
+
+    return ['ok' => true, 'text' => $out, 'httpCode' => $code, 'modelId' => $model];
 }

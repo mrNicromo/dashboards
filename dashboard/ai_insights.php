@@ -46,7 +46,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=4">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=5">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -127,9 +127,20 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — перед моделью каждый раз идут запросы к Airtable и отчётам (не подстановка старого кэша без API), затем развёрнутый текст. «Записать снимок» — только метрики в историю тренда без AI.</p>
-      <div class="ai-markdown ai-markdown-empty" id="ai-output">
-        <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
+      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — шаг 1: синхронизация с Airtable по API, шаг 2: запрос к модели (графики и текст из одного снимка). «Записать снимок» — только метрики в историю тренда без AI.</p>
+      <p class="ai-restore-row" id="ai-restore-wrap" hidden>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-restore">Показать последний сохранённый анализ</button>
+      </p>
+      <div class="ai-output-toolbar" id="ai-output-toolbar" hidden>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-copy">Копировать Markdown</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-dl">Скачать .md</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden>Развернуть полностью</button>
+      </div>
+      <div class="ai-number-warn" id="ai-number-warn" hidden></div>
+      <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
+        <div class="ai-markdown ai-markdown-empty" id="ai-output">
+          <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
+        </div>
       </div>
     </section>
   </div>
@@ -138,7 +149,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=7" defer></script>
+  <script src="assets/ai_insights.js?v=8" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
