@@ -1,7 +1,10 @@
 # Secrets
 dashboard/config.php
+dashboard/.merchrules_cookie
+dashboard/tools/.merchrules_cookie
 .env
 .env.*
+!.env.example
 
 # Runtime data
 dashboard/cache/*

@@ -167,6 +167,48 @@ final class Airtable
         return $records;
     }
 
+    /**
+     * Постраничная загрузка с полями по field id. В ответе ключи в `fields` — тоже id (returnFieldsByFieldId).
+     * Повторяющиеся `fields[]` в query http_build_query не умеет — собираем URL вручную.
+     *
+     * @param list<string> $fieldIds
+     * @param array<string, string|int|bool> $baseQuery
+     * @return list<array<string, mixed>>
+     */
+    public static function fetchAllPagesByFieldIds(string $baseId, string $tableId, array $baseQuery, array $fieldIds, string $token): array
+    {
+        $records = [];
+        $offset  = null;
+        do {
+            $q = $baseQuery;
+            if ($offset !== null) {
+                $q['offset'] = $offset;
+            }
+            $q['returnFieldsByFieldId'] = 'true';
+            $path = self::API . rawurlencode($baseId) . '/' . rawurlencode($tableId);
+            $qs   = http_build_query($q, '', '&', PHP_QUERY_RFC3986);
+            foreach ($fieldIds as $fid) {
+                $qs .= '&fields[]=' . rawurlencode($fid);
+            }
+            $url  = $path . '?' . $qs;
+            $body = self::httpGet($url, $token);
+            $decoded = json_decode($body, true);
+            if (!is_array($decoded)) {
+                throw new RuntimeException('Invalid JSON from Airtable');
+            }
+            if (isset($decoded['error'])) {
+                $msg = $decoded['error']['message'] ?? json_encode($decoded['error']);
+                throw new RuntimeException('Airtable error: ' . $msg);
+            }
+            foreach ($decoded['records'] ?? [] as $r) {
+                $records[] = $r;
+            }
+            $offset = $decoded['offset'] ?? null;
+        } while ($offset !== null);
+
+        return $records;
+    }
+
     /** @return list<array{id: string, name: string}> */
     public static function listMetaTables(string $baseId, string $token): array
     {
