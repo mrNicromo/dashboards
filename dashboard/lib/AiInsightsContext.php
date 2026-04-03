@@ -186,23 +186,27 @@ final class AiInsightsContext
     }
 
     /** JSON-строка для промпта (ограниченный размер). */
-    public static function promptContext(string $dir, string $airtableBaseId): string
+    public static function promptContext(string $dir, string $airtableBaseId, int $maxBytes = 280000): string
     {
         $bundle = self::buildBundle($dir, $airtableBaseId);
         $json = json_encode($bundle, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         if (!is_string($json)) {
             return '{}';
         }
-        if (strlen($json) > 280000) {
+        if (strlen($json) > $maxBytes) {
             $bundle['note'] = 'Данные усечены по размеру.';
-            $bundle['churn']['clients'] = array_slice($bundle['churn']['clients'] ?? [], 0, 12);
-            $bundle['dz']['topLegal'] = array_slice($bundle['dz']['topLegal'] ?? [], 0, 8);
-            $bundle['dz']['rowSamples'] = array_slice($bundle['dz']['rowSamples'] ?? [], 0, 12);
+            $clientsLimit = $maxBytes < 100000 ? 6 : 12;
+            $legalLimit   = $maxBytes < 100000 ? 5 : 8;
+            $rowsLimit    = $maxBytes < 100000 ? 8 : 12;
+            $linesLimit   = $maxBytes < 100000 ? 10 : 20;
+            $bundle['churn']['clients'] = array_slice($bundle['churn']['clients'] ?? [], 0, $clientsLimit);
+            $bundle['dz']['topLegal'] = array_slice($bundle['dz']['topLegal'] ?? [], 0, $legalLimit);
+            $bundle['dz']['rowSamples'] = array_slice($bundle['dz']['rowSamples'] ?? [], 0, $rowsLimit);
             if (isset($bundle['factLosses']['churnLinesSample'])) {
-                $bundle['factLosses']['churnLinesSample'] = array_slice($bundle['factLosses']['churnLinesSample'], 0, 20);
+                $bundle['factLosses']['churnLinesSample'] = array_slice($bundle['factLosses']['churnLinesSample'], 0, $linesLimit);
             }
             if (isset($bundle['factLosses']['downsellLinesSample'])) {
-                $bundle['factLosses']['downsellLinesSample'] = array_slice($bundle['factLosses']['downsellLinesSample'], 0, 20);
+                $bundle['factLosses']['downsellLinesSample'] = array_slice($bundle['factLosses']['downsellLinesSample'], 0, $linesLimit);
             }
             $json = json_encode($bundle, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
         }

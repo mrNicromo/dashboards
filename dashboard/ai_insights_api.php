@@ -109,6 +109,10 @@ try {
     $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
     $ctxBytes = strlen($ctxJson);
 
+    // Groq free tier: ~12 000 TPM — нужен сжатый контекст и меньший лимит вывода
+    $groqCtxJson = AiInsightsContext::promptContext($dir, $baseId, 22000);
+    $groqHistoryBlock = AiInsightsHistory::buildTrendPromptSection(8);
+
     $system = <<<'PROMPT'
 Ты — финансовый и операционный аналитик B2B SaaS.
 
@@ -139,6 +143,7 @@ PROMPT;
         ? "\n\n---\n### Дополнительный вопрос (приоритет — ответь на него явно в начале):\n" . $customQuestion
         : '';
     $user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote . $customBlock;
+    $groqUser = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $groqCtxJson . "\n```\n\n---\n### История сохранённых снимков\n" . $groqHistoryBlock . $liveNote . $customBlock;
 
     $gen = null;
     $provider = null;
@@ -156,7 +161,7 @@ PROMPT;
             $lastErr = (string) ($gen['error'] ?? '');
             $httpCode = (int) ($gen['httpCode'] ?? 0);
             if ($groqKey !== '' && ai_insights_should_fallback_to_groq($lastErr, $httpCode)) {
-                $gen = ai_insights_groq_generate($groqKey, $system, $user);
+                $gen = ai_insights_groq_generate($groqKey, $system, $groqUser);
                 if ($gen['ok']) {
                     $provider = 'groq';
                     $llmModelId = (string) ($gen['modelId'] ?? 'llama-3.3-70b-versatile');
@@ -169,7 +174,7 @@ PROMPT;
 
     if ($provider === null && $groqKey !== '' && ($geminiKey === '' || !($gen['ok'] ?? false))) {
         if ($geminiKey === '') {
-            $gen = ai_insights_groq_generate($groqKey, $system, $user);
+            $gen = ai_insights_groq_generate($groqKey, $system, $groqUser);
             if ($gen['ok']) {
                 $provider = 'groq';
                 $llmModelId = (string) ($gen['modelId'] ?? 'llama-3.3-70b-versatile');
@@ -354,7 +359,7 @@ function ai_insights_gemini_generate(string $apiKey, string $systemInstruction, 
  *
  * @return array{ok:bool, text?: string, error?: string, httpCode?: int, modelId?: string}
  */
-function ai_insights_groq_generate(string $apiKey, string $systemInstruction, string $userText): array
+function ai_insights_groq_generate(string $apiKey, string $systemInstruction, string $userText, int $maxTokens = 2048): array
 {
     $url = 'https://api.groq.com/openai/v1/chat/completions';
     $model = 'llama-3.3-70b-versatile';
@@ -362,7 +367,7 @@ function ai_insights_groq_generate(string $apiKey, string $systemInstruction, st
     $payload = [
         'model' => $model,
         'temperature' => 0.35,
-        'max_tokens' => 8192,
+        'max_tokens' => $maxTokens,
         'messages' => [
             ['role' => 'system', 'content' => $systemInstruction],
             ['role' => 'user', 'content' => $userText],
