@@ -284,9 +284,8 @@ final class AiInsightsContext
         $bundle['churn'] = array_merge($bundle['churn'], self::churnExtrasForAi($churn));
         $bundle['dz'] = array_merge($bundle['dz'], self::dzExtrasForAi($inner));
         $bundle['crossDashboard'] = self::loadCrossDashboardCaches($dir);
-        $bundle['source'] = 'Для этого ответа данные получены запросами к Airtable и отчётам непосредственно перед вызовом модели (рабочие файлы cache — результат свежего fetch, не «угадывание» по старому снимку). В JSON могут быть не все разделы — опирайся только на непустые поля.';
 
-        return $bundle;
+        return self::compactBundle($bundle);
     }
 
     /**
@@ -424,6 +423,29 @@ final class AiInsightsContext
             'factChurnYtd' => is_array($f) ? (int) round((float) ($f['churnYtd'] ?? 0)) : null,
             'factDownsellYtd' => is_array($f) ? (int) round((float) ($f['downsellYtd'] ?? 0)) : null,
         ];
+    }
+
+    /**
+     * Рекурсивно убирает null и пустые строки/массивы — сокращает JSON для LLM.
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function compactBundle(array $data): array
+    {
+        $out = [];
+        foreach ($data as $k => $v) {
+            if ($v === null || $v === '') {
+                continue;
+            }
+            if (is_array($v)) {
+                $v = self::compactBundle($v);
+                if ($v === []) {
+                    continue;
+                }
+            }
+            $out[$k] = $v;
+        }
+        return $out;
     }
 
     /**
