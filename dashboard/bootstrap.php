@@ -174,7 +174,7 @@ function dashboard_env(string $name): string
 function dashboard_config_builtin(): array
 {
     return [
-        'airtable_pat' => 'patwrU0X43xOzIDT5.d3c4c23c581f8d8df72989c1bd1ef7a2d77e1d45b1e87404f57cad22cfffdcde',
+        'airtable_pat' => '',
         'airtable_base_id' => 'appEAS1rPKpevoIel',
         'airtable_dz_table_id' => 'tblLEQYWypaYtAcp6',
         'airtable_dz_view_id' => 'viw977k6GUNrkeRRy',
