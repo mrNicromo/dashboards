@@ -30,7 +30,7 @@ RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
 RUN echo 'ServerName localhost' >> /etc/apache2/apache2.conf
 COPY docker/apache-railway.conf /etc/apache2/sites-enabled/000-default.conf
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 80
 
