@@ -314,6 +314,78 @@
     } else if (wrap) {
       wrap.hidden = true;
     }
+
+    // Потери по продуктам
+    const fp = ch.factByProduct;
+    const wrapProd = document.getElementById('ai-card-product-wrap');
+    const canvasProd = document.getElementById('chart-product');
+    if (fp && fp.labels && fp.labels.length && canvasProd && wrapProd) {
+      wrapProd.hidden = false;
+      chartInstances.push(
+        new Chart(canvasProd, {
+          type: 'bar',
+          data: {
+            labels: fp.labels,
+            datasets: [
+              { label: 'Churn', data: fp.churn || [], backgroundColor: pal[1] + 'cc', stack: 'a' },
+              { label: 'Downsell', data: fp.downsell || [], backgroundColor: pal[2] + 'cc', stack: 'a' },
+            ],
+          },
+          options: {
+            ...commonOpts,
+            scales: {
+              x: { stacked: true, ticks: { color: muted }, grid: { color: grid } },
+              y: { stacked: true, ticks: { color: muted }, grid: { color: grid } },
+            },
+          },
+        })
+      );
+    } else if (wrapProd) {
+      wrapProd.hidden = true;
+    }
+
+    // ENT vs SMB по месяцам
+    const fsm = ch.factSegMonthly;
+    const wrapSeg = document.getElementById('ai-card-seg-monthly-wrap');
+    const canvasSeg = document.getElementById('chart-seg-monthly');
+    if (fsm && fsm.labels && fsm.labels.length && canvasSeg && wrapSeg) {
+      wrapSeg.hidden = false;
+      chartInstances.push(
+        new Chart(canvasSeg, {
+          type: 'line',
+          data: {
+            labels: fsm.labels,
+            datasets: [
+              {
+                label: 'ENT',
+                data: fsm.ent || [],
+                borderColor: pal[0],
+                backgroundColor: pal[0] + '22',
+                tension: 0.3,
+                fill: true,
+              },
+              {
+                label: 'SMB',
+                data: fsm.smb || [],
+                borderColor: pal[2],
+                backgroundColor: pal[2] + '22',
+                tension: 0.3,
+                fill: true,
+              },
+            ],
+          },
+          options: {
+            ...commonOpts,
+            scales: {
+              x: { ticks: { color: muted, maxRotation: 45 }, grid: { color: grid } },
+              y: { ticks: { color: muted }, grid: { color: grid } },
+            },
+          },
+        })
+      );
+    } else if (wrapSeg) {
+      wrapSeg.hidden = true;
+    }
   }
 
   function mergeBootstrapHistory(historyChart, historyCount) {
@@ -907,19 +979,18 @@
     // Comparison UI
     initCompareUi(payload);
 
-    if (payload.chartsNeedAsyncRefresh) {
-      refreshChartsFromApi(payload);
-    }
-
-    // Авто-анализ: если прошло больше порога — автоматически запускаем полный AI-анализ
+    // Авто-анализ запускается если прошло больше порога (включает синхронизацию Airtable внутри).
+    // Если авто-анализ — НЕ запускаем отдельный refreshChartsFromApi, чтобы не конкурировать за лок.
     if (payload.autoSnapshotNeeded && payload.hasAiKey) {
       const st = document.getElementById('ai-status');
       if (st) {
         st.textContent = 'Автоматический AI-анализ запущен (раз в ' + (payload.autoSnapshotHours || 24) + 'ч)…';
         st.className = 'ai-card-hint';
       }
-      // Небольшая задержка, чтобы дать странице отрендериться
-      setTimeout(() => generateStream(), 2000);
+      setTimeout(() => generateStream(), 1500);
+    } else if (payload.chartsNeedAsyncRefresh) {
+      // Только обновление графиков без AI
+      refreshChartsFromApi(payload);
     }
 
     document.getElementById('btn-ai-expand')?.addEventListener('click', () => {
@@ -954,21 +1025,36 @@
       URL.revokeObjectURL(a.href);
     });
 
-    const last = loadLastAnalysis();
-    const restoreWrap = document.getElementById('ai-restore-wrap');
-    if (last && last.text && restoreWrap) {
-      restoreWrap.hidden = false;
-      document.getElementById('btn-ai-restore')?.addEventListener('click', () => {
-        lastMarkdownRaw = String(last.text || '');
-        renderMarkdown(last.text);
-        showOutputToolbar(true);
-        restoreWrap.hidden = true;
-        const stEl = document.getElementById('ai-status');
-        if (stEl) {
-          stEl.textContent = 'Показан сохранённый локально анализ (не новый запрос к серверу).';
-          stEl.className = 'ai-card-hint';
-        }
-      });
+    // Авто-показ последнего сохранённого анализа из серверной истории
+    const serverLast = payload.lastAnalysis;
+    if (serverLast && serverLast.text && !payload.autoSnapshotNeeded) {
+      lastMarkdownRaw = String(serverLast.text);
+      renderMarkdown(serverLast.text);
+      showOutputToolbar(true);
+      const stEl = document.getElementById('ai-status');
+      if (stEl) {
+        const dt = serverLast.t ? new Date(serverLast.t * 1000).toLocaleString('ru-RU') : '';
+        stEl.textContent = 'Последний анализ' + (dt ? ' от ' + dt : '') + ' (из истории сервера).';
+        stEl.className = 'ai-card-hint';
+      }
+    } else {
+      // Фолбэк: localStorage
+      const last = loadLastAnalysis();
+      const restoreWrap = document.getElementById('ai-restore-wrap');
+      if (last && last.text && restoreWrap && !payload.autoSnapshotNeeded) {
+        restoreWrap.hidden = false;
+        document.getElementById('btn-ai-restore')?.addEventListener('click', () => {
+          lastMarkdownRaw = String(last.text || '');
+          renderMarkdown(last.text);
+          showOutputToolbar(true);
+          restoreWrap.hidden = true;
+          const stEl = document.getElementById('ai-status');
+          if (stEl) {
+            stEl.textContent = 'Показан сохранённый локально анализ (не новый запрос к серверу).';
+            stEl.className = 'ai-card-hint';
+          }
+        });
+      }
     }
   }
 

@@ -56,6 +56,30 @@ final class AiInsightsContext
             ];
         }
 
+        // Потери по продуктам (YTD)
+        $byProduct = null;
+        if (!empty($fact['byProduct']) && is_array($fact['byProduct'])) {
+            $prods = array_slice($fact['byProduct'], 0, 8);
+            $byProduct = [
+                'labels' => array_map(static fn ($p) => (string) ($p['product'] ?? '?'), $prods),
+                'churn' => array_map(static fn ($p) => round((float) ($p['churn'] ?? 0)), $prods),
+                'downsell' => array_map(static fn ($p) => round((float) ($p['downsell'] ?? 0)), $prods),
+            ];
+        }
+
+        // ENT vs SMB по месяцам (из byMonthSegment)
+        $segMonthly = null;
+        if (!empty($fact['byMonthSegment']) && is_array($fact['byMonthSegment'])) {
+            $segKeys = array_keys($fact['byMonthSegment']);
+            sort($segKeys);
+            $segKeys = array_slice($segKeys, -14);
+            $segMonthly = [
+                'labels' => $segKeys,
+                'ent' => array_map(static fn ($k) => round((float) ($fact['byMonthSegment'][$k]['ent'] ?? 0)), $segKeys),
+                'smb' => array_map(static fn ($k) => round((float) ($fact['byMonthSegment'][$k]['smb'] ?? 0)), $segKeys),
+            ];
+        }
+
         return [
             'airtableBaseId' => $airtableBaseId,
             'dzGeneratedAt' => $inner['generatedAt'] ?? null,
@@ -65,6 +89,8 @@ final class AiInsightsContext
             'churnBySegment' => ['labels' => $segLabels, 'values' => $segVals],
             'dzByManager' => ['labels' => $mgrLabels, 'values' => $mgrVals],
             'factMonthly' => $monthly,
+            'factByProduct' => $byProduct,
+            'factSegMonthly' => $segMonthly,
         ];
     }
 

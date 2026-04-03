@@ -29,6 +29,19 @@ $configuredProviders = array_filter([
 $historyChart = AiInsightsHistory::chartSeries(56);
 $hist = AiInsightsHistory::load();
 $historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
+
+// Последний сохранённый AI-анализ из истории (для авто-показа на странице)
+$lastAnalysisText = '';
+$lastAnalysisTs = 0;
+if (!empty($hist['items']) && is_array($hist['items'])) {
+    foreach (array_reverse($hist['items']) as $hItem) {
+        if (!empty($hItem['analysis'])) {
+            $lastAnalysisText = (string) $hItem['analysis'];
+            $lastAnalysisTs = (int) ($hItem['t'] ?? 0);
+            break;
+        }
+    }
+}
 $chartHints = AiInsightsContext::chartHintsFromCharts($charts);
 // Мета-список снимков для UI сравнения (timestamp + краткие метрики, без текста анализа)
 // Auto-snapshot: check if last snapshot is older than configured interval
@@ -67,6 +80,7 @@ $bootstrapJson = json_encode(
         'providers' => array_values($configuredProviders),
         'autoSnapshotNeeded' => $autoSnapshotNeeded,
         'autoSnapshotHours' => $autoSnapshotHours,
+        'lastAnalysis' => $lastAnalysisText !== '' ? ['text' => $lastAnalysisText, 't' => $lastAnalysisTs] : null,
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
@@ -162,6 +176,16 @@ $bootstrapJson = json_encode(
         <h2>Потери: churn + downsell по месяцам</h2>
         <p class="ai-card-hint">По данным отчёта потерь (Sheets → кэш на сервере)</p>
         <div class="ai-canvas-wrap ai-canvas-tall"><canvas id="chart-monthly" aria-label="График потерь по месяцам"></canvas></div>
+      </section>
+      <section class="ai-card" id="ai-card-product-wrap" hidden>
+        <h2>Потери по продуктам (YTD)</h2>
+        <p class="ai-card-hint">Churn + Downsell в разбивке по продукту за текущий год</p>
+        <div class="ai-canvas-wrap"><canvas id="chart-product" aria-label="Потери по продуктам"></canvas></div>
+      </section>
+      <section class="ai-card" id="ai-card-seg-monthly-wrap" hidden>
+        <h2>Потери: ENT vs SMB по месяцам</h2>
+        <p class="ai-card-hint">Сравнение сегментов Enterprise и SMB</p>
+        <div class="ai-canvas-wrap"><canvas id="chart-seg-monthly" aria-label="ENT vs SMB потери"></canvas></div>
       </section>
     </div>
 
