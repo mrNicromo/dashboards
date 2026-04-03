@@ -77,6 +77,8 @@
   let lastMarkdownRaw = '';
   /** Текущий стриминг — для отмены */
   let activeStreamController = null;
+  /** Текущий режим анализа */
+  let currentMode = 'all';
 
   function destroyCharts() {
     chartInstances.forEach((c) => {
@@ -595,6 +597,9 @@
             ? 'Критичная корзина 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal)
             : 'Нет загруженного снимка дебиторки.',
         tone: dzTotal > 0 ? 'danger' : 'muted',
+        question: dzTotal > 0
+          ? 'Детально разбери дебиторку: какие клиенты формируют основной долг, корзины просрочки, приоритетные действия.'
+          : null,
       },
       {
         label: 'Корзина 91+',
@@ -604,6 +609,9 @@
             ? 'Доля от всей ДЗ: ' + shareText(aging91, dzTotal)
             : 'Появится после загрузки данных по ДЗ.',
         tone: aging91 > 0 ? 'warn' : 'muted',
+        question: aging91 > 0
+          ? 'Сфокусируйся на корзине 91+ и выше: какие клиенты там, суммы, что нужно сделать прямо сейчас.'
+          : null,
       },
       {
         label: 'Churn risk MRR',
@@ -613,15 +621,21 @@
             ? 'Крупнейший сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue)
             : 'Нет содержательных данных по churn-риску.',
         tone: churnRisk > 0 ? 'accent' : 'muted',
+        question: churnRisk > 0
+          ? 'Разбери churn-риск: какие клиенты и сегменты под угрозой, суммы MRR, что делать для удержания.'
+          : null,
       },
       {
         label: 'Топ-менеджер по ДЗ',
-        value: topManager,
+        value: topManager !== '—' ? topManager : '—',
         meta:
           topManagerValue > 0
             ? 'Сумма в его портфеле: ' + fullMoney(topManagerValue)
             : 'Нет менеджерской разбивки в текущем снимке.',
         tone: topManagerValue > 0 ? 'ok' : 'muted',
+        question: topManagerValue > 0
+          ? 'Разбери ДЗ по менеджерам: у кого самая большая проблема, конкретные суммы и клиенты, что каждому делать.'
+          : null,
       },
       {
         label: 'Потери YTD',
@@ -631,6 +645,9 @@
             ? 'Собрано из фактического отчёта потерь.'
             : 'Нет доступного снимка по фактическим потерям.',
         tone: factTotal > 0 ? 'danger' : 'muted',
+        question: factTotal > 0
+          ? 'Детально разбери фактические потери YTD: по месяцам, продуктам, сегментам, тренд.'
+          : null,
       },
     ];
 
@@ -639,9 +656,13 @@
         (card) =>
           '<div class="ai-kpi-card ai-kpi-card-' +
           esc(card.tone) +
-          '">' +
+          (card.question ? ' ai-kpi-card-clickable' : '') +
+          '"' +
+          (card.question ? ' data-ai-kpi-q="' + esc(card.question) + '" title="Спросить AI про ' + esc(card.label) + '"' : '') +
+          '>' +
           '<div class="ai-kpi-label">' +
           esc(card.label) +
+          (card.question ? ' <span class="ai-kpi-ask">❓</span>' : '') +
           '</div>' +
           '<div class="ai-kpi-value">' +
           esc(card.value) +
@@ -652,6 +673,14 @@
           '</div>'
       )
       .join('');
+
+    // Клик по KPI-карточке → вопрос к AI
+    host.querySelectorAll('[data-ai-kpi-q]').forEach((card) => {
+      card.addEventListener('click', () => {
+        applyPresetQuestion(card.getAttribute('data-ai-kpi-q') || '');
+        document.getElementById('btn-generate-stream')?.focus();
+      });
+    });
   }
 
   function clearOutline() {
@@ -885,10 +914,17 @@
   }
 
   function setGeneratingState(busy) {
-    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot', 'btn-analyze-all', 'btn-compare'];
+    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot', 'btn-analyze-all', 'btn-compare', 'btn-what-changed'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.disabled = busy;
+    });
+  }
+
+  function setActiveMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.ai-mode-btn[data-mode]').forEach((btn) => {
+      btn.classList.toggle('ai-mode-btn-active', btn.getAttribute('data-mode') === mode);
     });
   }
 
@@ -926,7 +962,7 @@
       const resp = await fetch('ai_insights_stream_api.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ customQuestion: getCustomQuestion() }),
+        body: JSON.stringify({ customQuestion: getCustomQuestion(), mode: currentMode }),
         signal: controller.signal,
       });
 
@@ -1228,7 +1264,7 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({ skipRefresh: true, customQuestion: getCustomQuestion() }),
+        body: JSON.stringify({ skipRefresh: true, customQuestion: getCustomQuestion(), mode: currentMode }),
       });
       let j = {};
       try {
@@ -1375,6 +1411,20 @@
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
     document.getElementById('btn-analyze-all')?.addEventListener('click', analyzeAll);
 
+    // Режимы анализа
+    document.querySelectorAll('.ai-mode-btn[data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => setActiveMode(btn.getAttribute('data-mode') || 'all'));
+    });
+
+    // "Что изменилось?" — заполняем вопрос и запускаем стриминг
+    document.getElementById('btn-what-changed')?.addEventListener('click', () => {
+      applyPresetQuestion(
+        'Сравни текущий снимок с предыдущим: что изменилось по ДЗ (суммы, корзины, клиенты), ' +
+        'churn-риску и потерям. Выдели тренд: стало лучше или хуже? Назови конкретные цифры дельт.'
+      );
+      generateStream();
+    });
+
     // Custom question toggle + presets
     document.getElementById('btn-custom-question-toggle')?.addEventListener('click', () => {
       const body = document.getElementById('ai-custom-question-body');
@@ -1434,6 +1484,38 @@
       a.download = 'ai-insights-' + new Date().toISOString().slice(0, 10) + '.md';
       a.click();
       URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById('btn-ai-pdf')?.addEventListener('click', () => {
+      const raw = lastMarkdownRaw || '';
+      if (!raw.trim()) return;
+      document.documentElement.classList.add('ai-print-mode');
+      window.print();
+      setTimeout(() => document.documentElement.classList.remove('ai-print-mode'), 500);
+    });
+
+    document.getElementById('btn-ai-tg')?.addEventListener('click', async () => {
+      const raw = lastMarkdownRaw || '';
+      if (!raw.trim()) return;
+      // Telegram поддерживает упрощённый Markdown, конвертируем заголовки в жирный
+      const tg = raw
+        .replace(/^#{1,3} (.+)$/gm, '*$1*')
+        .replace(/\*\*(.+?)\*\*/g, '*$1*')
+        .trim();
+      try {
+        await navigator.clipboard.writeText(tg);
+        const stEl = document.getElementById('ai-status');
+        if (stEl) {
+          stEl.textContent = 'Текст скопирован для Telegram (вставьте в чат с форматированием).';
+          stEl.classList.add('ai-status-ok');
+        }
+      } catch (_) {
+        const stEl = document.getElementById('ai-status');
+        if (stEl) {
+          stEl.textContent = 'Не удалось скопировать. Используйте «Копировать Markdown» вручную.';
+          stEl.classList.add('ai-status-err');
+        }
+      }
     });
 
     // Авто-показ последнего сохранённого анализа из серверной истории
