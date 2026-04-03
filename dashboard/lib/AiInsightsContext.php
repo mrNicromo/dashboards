@@ -581,17 +581,31 @@ final class AiInsightsContext
         }
 
         @unlink($cacheDir . '/churn-report.json');
-        $churnRisk = ChurnReport::fetchReport($pat, $base);
+        $churnRisk = [];
+        try {
+            $churnRisk = ChurnReport::fetchReport($pat, $base);
+        } catch (\Throwable $e) {
+            // Churn некритичен для основного анализа ДЗ — логируем и продолжаем
+            AiInsightsSupport::logLine('churn_fetch_warn', ['err' => $e->getMessage()]);
+        }
 
         @unlink($cacheDir . '/churn-fact-report.json');
-        ChurnFactReport::fetchReport(
-            $pat,
-            $base,
-            (float) ($churnRisk['prob3mrr'] ?? 0),
-            (float) ($churnRisk['prob3riskEnt'] ?? 0),
-            (float) ($churnRisk['prob3riskSmb'] ?? 0)
-        );
+        try {
+            ChurnFactReport::fetchReport(
+                $pat,
+                $base,
+                (float) ($churnRisk['prob3mrr'] ?? 0),
+                (float) ($churnRisk['prob3riskEnt'] ?? 0),
+                (float) ($churnRisk['prob3riskSmb'] ?? 0)
+            );
+        } catch (\Throwable $e) {
+            AiInsightsSupport::logLine('churn_fact_fetch_warn', ['err' => $e->getMessage()]);
+        }
 
-        ManagerReport::fetchReport($pat, $base);
+        try {
+            ManagerReport::fetchReport($pat, $base);
+        } catch (\Throwable $e) {
+            AiInsightsSupport::logLine('manager_fetch_warn', ['err' => $e->getMessage()]);
+        }
     }
 }

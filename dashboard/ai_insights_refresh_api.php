@@ -51,15 +51,30 @@ if ($rl !== null) {
     exit;
 }
 
+$forceNoCacheSrc = file_get_contents('php://input') ?: '{}';
+$forceInput = json_decode($forceNoCacheSrc, true);
+$forceNoCache = is_array($forceInput) && !empty($forceInput['force']);
+
+if ($forceNoCache) {
+    // Явная очистка всех кэшей перед refresh (кнопка "Анализ всех дашбордов")
+    $cacheFiles = ['dz-data-default.json', 'churn-report.json', 'churn-fact-report.json', 'manager-report.json'];
+    foreach ($cacheFiles as $cf) {
+        @unlink($dir . '/' . $cf);
+    }
+}
+
 try {
     $out = AiInsightsSupport::executeRefreshPipeline($c);
 } catch (Throwable $e) {
     AiInsightsSupport::releaseLock();
     AiInsightsSupport::logLine('refresh_fail', ['err' => $e->getMessage()]);
     http_response_code(502);
+    $baseId = trim((string) ($c['airtable_base_id'] ?? ''));
+    $errMeta = AiInsightsSupport::classifyFetchError($e->getMessage(), $baseId);
     echo json_encode([
         'ok' => false,
-        'error' => AiInsightsSupport::mapFetchError($e->getMessage()),
+        'error' => $errMeta['message'],
+        'errorMeta' => $errMeta,
         'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
     ], JSON_UNESCAPED_UNICODE);
     exit;

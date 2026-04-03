@@ -21,9 +21,15 @@ $geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: 
 $groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
 $anthropicConfigured = trim((string) (dashboard_env('DASHBOARD_ANTHROPIC_API_KEY') ?: ($c['anthropic_api_key'] ?? ''))) !== '';
 $keyConfigured = $geminiConfigured || $groqConfigured || $anthropicConfigured;
+// Порядок: Groq → Gemini → Claude (Groq как основной, Gemini как резерв)
+$allProviders = [
+    ['id' => 'groq',     'name' => 'Groq',     'ok' => $groqConfigured],
+    ['id' => 'gemini',   'name' => 'Gemini',   'ok' => $geminiConfigured],
+    ['id' => 'claude',   'name' => 'Claude',   'ok' => $anthropicConfigured],
+];
 $configuredProviders = array_filter([
-    $geminiConfigured ? 'Gemini' : null,
     $groqConfigured ? 'Groq' : null,
+    $geminiConfigured ? 'Gemini' : null,
     $anthropicConfigured ? 'Claude' : null,
 ]);
 $historyChart = AiInsightsHistory::chartSeries(56);
@@ -78,10 +84,12 @@ $bootstrapJson = json_encode(
         'chartsNeedAsyncRefresh' => $chartsNeedAsyncRefresh,
         'chartHints' => $chartHints,
         'providers' => array_values($configuredProviders),
+        'allProviders' => $allProviders,
         'autoSnapshotNeeded' => $autoSnapshotNeeded,
         'autoSnapshotHours' => $autoSnapshotHours,
         'lastAnalysis' => $lastAnalysisText !== '' ? ['text' => $lastAnalysisText, 't' => $lastAnalysisTs] : null,
         'csrf' => csrf_token(),
+        'baseId' => htmlspecialchars($baseId, ENT_QUOTES, 'UTF-8'),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
 );
@@ -130,22 +138,28 @@ $bootstrapJson = json_encode(
     </div>
     <?php endif; ?>
 
+    <!-- Статусы AI-провайдеров (Groq → Gemini → Claude) -->
+    <div class="ai-provider-status-row">
+      <?php foreach ($allProviders as $prov): ?>
+      <div class="ai-provider-status <?= $prov['ok'] ? 'ai-provider-ok' : 'ai-provider-off' ?>">
+        <span class="ai-provider-dot"></span>
+        <span class="ai-provider-name"><?= htmlspecialchars($prov['name'], ENT_QUOTES, 'UTF-8') ?></span>
+        <span class="ai-provider-state"><?= $prov['ok'] ? 'подключено' : 'ключ не задан' ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
       <strong>Ключ AI не настроен.</strong> Нужен хотя бы один:
-      <code>DASHBOARD_GEMINI_API_KEY</code> (Gemini · основной),
-      <code>DASHBOARD_GROQ_API_KEY</code> (Groq · резерв),
+      <code>DASHBOARD_GROQ_API_KEY</code> (Groq · основной),
+      <code>DASHBOARD_GEMINI_API_KEY</code> (Gemini · резерв),
       <code>DASHBOARD_ANTHROPIC_API_KEY</code> (Claude · резерв).
       Задайте в <code>config.php</code> или переменных окружения. Ключи не храните в git.
     </div>
-    <?php else: ?>
-    <div class="ai-provider-badges">
-      <?php foreach ($configuredProviders as $prov): ?>
-        <span class="ai-provider-badge ai-provider-badge-<?= strtolower(htmlspecialchars($prov, ENT_QUOTES, 'UTF-8')) ?>"><?= htmlspecialchars($prov, ENT_QUOTES, 'UTF-8') ?></span>
-      <?php endforeach; ?>
-      <span class="ai-provider-order">Порядок: Gemini → Groq → Claude</span>
-    </div>
     <?php endif; ?>
+
+    <!-- Блок ошибок подключения (заполняется JS при ошибках Airtable/LLM) -->
+    <div id="ai-error-status-wrap" hidden></div>
 
     <section class="ai-card ai-card-wide" id="ai-card-history-wrap">
       <h2>История снимков (тренд)</h2>
@@ -196,6 +210,7 @@ $bootstrapJson = json_encode(
           <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" title="Сохранить текущие метрики в историю без вызова AI">Записать снимок метрик</button>
           <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> title="Потоковая генерация — текст появляется по мере ответа модели">⚡ Стриминг</button>
           <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
+          <button type="button" class="btn-icon ai-btn-force" id="btn-analyze-all" <?= $keyConfigured ? '' : 'disabled' ?> title="Принудительная синхронизация всех данных из Airtable без кэша + краткий анализ всех дашбордов">🔄 Все дашборды</button>
         </div>
       </div>
       <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — синхронизация Airtable → запрос к модели. «⚡ Стриминг» — то же, но текст появляется сразу по мере ответа. «Записать снимок» — только метрики без AI.</p>

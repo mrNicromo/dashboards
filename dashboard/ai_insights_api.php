@@ -85,9 +85,12 @@ try {
             AiInsightsSupport::releaseLock();
             AiInsightsSupport::logLine('refresh_fail', ['err' => $e->getMessage(), 'where' => 'ai_insights_api']);
             http_response_code(502);
+            $baseId = trim((string) ($c['airtable_base_id'] ?? ''));
+            $errMeta = AiInsightsSupport::classifyFetchError($e->getMessage(), $baseId);
             echo json_encode([
                 'ok' => false,
-                'error' => AiInsightsSupport::mapFetchError($e->getMessage()),
+                'error' => $errMeta['message'],
+                'errorMeta' => $errMeta,
                 'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
             ], JSON_UNESCAPED_UNICODE);
             exit;

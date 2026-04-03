@@ -107,22 +107,127 @@ final class AiInsightsSupport
 
     public static function mapFetchError(string $rawMessage): string
     {
-        $m = $rawMessage;
-        $l = mb_strtolower($m);
+        return self::classifyFetchError($rawMessage)['message'];
+    }
+
+    /**
+     * Структурированная классификация ошибки Airtable / LLM.
+     *
+     * @return array{type:string, message:string, detail:string, action:string, link:string|null}
+     */
+    public static function classifyFetchError(string $rawMessage, string $baseId = '', string $tableId = ''): array
+    {
+        $l = mb_strtolower($rawMessage);
+        $airtableLink = ($baseId !== '' && $tableId !== '')
+            ? 'https://airtable.com/' . $baseId . '/' . $tableId
+            : null;
+
+        // 429 Rate Limit (Airtable)
         if (str_contains($l, '429') || str_contains($l, 'rate limit') || str_contains($l, 'too many requests')) {
-            return 'Лимит запросов к Airtable (429). Повторите позже или проверьте план Airtable.';
-        }
-        if (str_contains($l, '401') || str_contains($l, 'unauthorized') || str_contains($l, 'invalid permissions')) {
-            return 'Доступ к Airtable отклонён (401). Проверьте AIRTABLE_PAT и права токена.';
-        }
-        if (str_contains($l, '403') || str_contains($l, 'forbidden')) {
-            return 'Доступ запрещён (403). Проверьте права PAT и доступ к базе.';
-        }
-        if (str_contains($l, 'not found') || str_contains($l, '404') || str_contains($l, 'unknown table')) {
-            return 'Таблица или база не найдены. Проверьте AIRTABLE_BASE_ID и ID таблиц в config.';
+            return [
+                'type' => 'rate_limit',
+                'message' => 'Превышен лимит запросов Airtable (429).',
+                'detail' => 'Airtable ограничивает 5 запросов/сек на базу. Подождите ~60 секунд и повторите.',
+                'action' => 'Подождите ~60 сек и нажмите «Сгенерировать анализ» снова.',
+                'link' => $airtableLink,
+            ];
         }
 
-        return 'Не удалось загрузить данные из Airtable / отчётов: ' . $m;
+        // 401 Unauthorized / invalid PAT
+        if (str_contains($l, '401') || str_contains($l, 'unauthorized') || str_contains($l, 'invalid permissions')) {
+            return [
+                'type' => 'no_auth',
+                'message' => 'AIRTABLE_PAT недействителен (401).',
+                'detail' => 'Токен устарел, отозван или введён с ошибкой.',
+                'action' => 'Обновите AIRTABLE_PAT в config.php. Токен создаётся в настройках Airtable → Developer Hub → Personal Access Tokens.',
+                'link' => null,
+            ];
+        }
+
+        // 403 Forbidden / no access to base/table
+        if (str_contains($l, '403') || str_contains($l, 'forbidden')) {
+            return [
+                'type' => 'no_access',
+                'message' => 'Нет доступа к таблице (403).',
+                'detail' => 'PAT не имеет прав на чтение этой базы или таблицы.',
+                'action' => 'Откройте Airtable → Personal Access Tokens → добавьте базу к токену. Нужны права data.records:read и schema.bases:read.',
+                'link' => $airtableLink,
+            ];
+        }
+
+        // 422 Unprocessable — часто означает неверный filterByFormula или view с ограничениями
+        if (str_contains($l, '422') || str_contains($l, 'invalid filter') || str_contains($l, 'filterbyformula')) {
+            return [
+                'type' => 'filtered_table',
+                'message' => 'Ошибка фильтра или вида Airtable (422).',
+                'detail' => 'Вид содержит несовместимый фильтр или формула filterByFormula некорректна.',
+                'action' => 'Откройте вид в Airtable и снимите все фильтры, или укажите другой airtable_dz_view_id в config.php.',
+                'link' => $airtableLink,
+            ];
+        }
+
+        // 404 Not Found — таблица/вид не существует
+        if (str_contains($l, 'not found') || str_contains($l, '404') || str_contains($l, 'unknown table') || str_contains($l, 'view')) {
+            $isView = str_contains($l, 'view');
+            if ($isView) {
+                return [
+                    'type' => 'view_not_found',
+                    'message' => 'Вид Airtable не найден.',
+                    'detail' => 'ID вида (viw…) в config.php не существует или был удалён. Данные будут загружены без фильтра вида.',
+                    'action' => 'Очистите airtable_dz_view_id / airtable_cs_view_id в config.php или укажите актуальный ID вида.',
+                    'link' => $airtableLink,
+                ];
+            }
+
+            return [
+                'type' => 'table_not_found',
+                'message' => 'Таблица или база Airtable не найдены.',
+                'detail' => 'Таблица с указанным ID (tbl…) или база (app…) не существует. Возможно, таблица была удалена или Base ID изменился.',
+                'action' => 'Проверьте AIRTABLE_BASE_ID и airtable_dz_table_id в config.php. Актуальный ID таблицы можно взять из URL Airtable.',
+                'link' => $airtableLink,
+            ];
+        }
+
+        // LLM token/quota errors
+        if (str_contains($l, 'quota') || str_contains($l, 'tokens') || str_contains($l, 'resource_exhausted')) {
+            return [
+                'type' => 'llm_quota',
+                'message' => 'Исчерпана квота токенов модели.',
+                'detail' => $rawMessage,
+                'action' => 'Подождите до обновления квоты (обычно ежедневно) или переключитесь на другой провайдер в config.php.',
+                'link' => null,
+            ];
+        }
+
+        // LLM invalid key
+        if (str_contains($l, 'api key') || str_contains($l, 'invalid key') || str_contains($l, 'incorrect api')) {
+            return [
+                'type' => 'llm_bad_key',
+                'message' => 'Ключ AI-провайдера недействителен.',
+                'detail' => $rawMessage,
+                'action' => 'Проверьте DASHBOARD_GEMINI_API_KEY / DASHBOARD_GROQ_API_KEY / DASHBOARD_ANTHROPIC_API_KEY в config.php или .env.',
+                'link' => null,
+            ];
+        }
+
+        // LLM overload / service unavailable
+        if (str_contains($l, 'overloaded') || str_contains($l, 'service unavailable') || str_contains($l, '503') || str_contains($l, '529')) {
+            return [
+                'type' => 'llm_unavailable',
+                'message' => 'AI-провайдер временно недоступен.',
+                'detail' => $rawMessage,
+                'action' => 'Подождите несколько минут и повторите. Или переключитесь на другой провайдер.',
+                'link' => null,
+            ];
+        }
+
+        return [
+            'type' => 'unknown',
+            'message' => 'Не удалось загрузить данные из Airtable.',
+            'detail' => $rawMessage,
+            'action' => 'Проверьте AIRTABLE_PAT, BASE_ID и ID таблиц в config.php.',
+            'link' => $airtableLink,
+        ];
     }
 
     /**

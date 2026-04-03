@@ -212,7 +212,25 @@ final class DzReport
         if ($dzViewActive) {
             $debtQuery['view'] = $dzV;
         }
-        $raw = Airtable::fetchAllPages($baseId, $tableId, $debtQuery, $token);
+        try {
+            $raw = Airtable::fetchAllPages($baseId, $tableId, $debtQuery, $token);
+        } catch (\RuntimeException $e) {
+            // Если view не найден (404/422) — повторяем без него: view мог быть удалён или переименован
+            if ($dzViewActive) {
+                $isViewErr = str_contains($e->getMessage(), '404')
+                    || str_contains(strtolower($e->getMessage()), 'view')
+                    || str_contains(strtolower($e->getMessage()), 'not found')
+                    || str_contains($e->getMessage(), '422');
+                if ($isViewErr) {
+                    unset($debtQuery['view']);
+                    $raw = Airtable::fetchAllPages($baseId, $tableId, $debtQuery, $token);
+                } else {
+                    throw $e;
+                }
+            } else {
+                throw $e;
+            }
+        }
         $ms = (int) round((microtime(true) - $t0) * 1000);
 
         $todayDt = new DateTimeImmutable('today');
