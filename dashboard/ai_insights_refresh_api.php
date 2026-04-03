@@ -75,6 +75,7 @@ try {
         'ok' => false,
         'error' => $errMeta['message'],
         'errorMeta' => $errMeta,
+        'rawError' => $e->getMessage(),
         'promptVersion' => AiInsightsSupport::PROMPT_VERSION,
     ], JSON_UNESCAPED_UNICODE);
     exit;
