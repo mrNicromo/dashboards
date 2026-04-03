@@ -7,7 +7,13 @@ WORKDIR /var/www/html
 RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev libcurl4-openssl-dev \
     && docker-php-ext-install mbstring curl \
     && docker-php-ext-enable curl \
-    && printf "%s\n" "allow_url_fopen=On" > /usr/local/etc/php/conf.d/zz-railway.ini \
+    && printf "%s\n" \
+        "allow_url_fopen=On" \
+        "memory_limit=512M" \
+        "max_execution_time=0" \
+        "max_input_time=300" \
+        "output_buffering=Off" > /usr/local/etc/php/conf.d/zz-railway.ini \
+    && a2enmod rewrite headers \
     && php -r "exit(function_exists('curl_init') ? 0 : 1);" \
     && php -r "exit((int)!ini_get('allow_url_fopen'));" \
     && apt-get clean \
@@ -19,6 +25,10 @@ COPY dashboard/ /var/www/html/
 RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
     && chown -R www-data:www-data /var/www/html/cache /var/www/html/snapshots
 
+# Apache слушает PORT из Railway
+RUN echo 'ServerName localhost' >> /etc/apache2/apache2.conf
+COPY docker/apache-railway.conf /etc/apache2/sites-enabled/000-default.conf
+
 EXPOSE 80
 
-CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-80} -t /var/www/html"]
+CMD ["sh", "-c", "sed -i \"s/Listen 80/Listen ${PORT:-80}/\" /etc/apache2/ports.conf && sed -i \"s/:80>/:${PORT:-80}>/\" /etc/apache2/sites-enabled/000-default.conf && apache2-foreground"]
