@@ -259,10 +259,14 @@ final class ChurnFactReport
                 $account = $col($row, 'клиент', 'account', 'client');
                 if ($account === '') continue;
 
-                $mrrRaw = self::amt($col($row, 'mrr', 'сумма mrr', 'mrr сумма', 'mrr потеря', 'потеря mrr', 'сумма'));
+                $mrrRaw = self::amt($col($row,
+                    'изменение', 'mrr старый', 'mrr потеря', 'потеря mrr',
+                    'mrr', 'сумма mrr', 'mrr сумма', 'сумма'
+                ));
                 $mrr    = abs($mrrRaw);
 
-                $monthVal = $col($row, 'месяц', 'month');
+                // Месяц чёрна приоритетнее месяца внесения
+                $monthVal = $col($row, 'месяц черн', 'месяц churn', 'месяц', 'month');
                 $yearVal  = $col($row, 'год', 'year');
                 $month    = self::buildMonthStr($monthVal, $yearVal);
 
