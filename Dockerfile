@@ -1,9 +1,7 @@
-FROM php:8.2-apache
+FROM php:8.2-cli
 
 WORKDIR /var/www/html
 
-# Минимально нужные расширения для текущего проекта
-# libonig-dev — для mbstring, libcurl4-openssl-dev — для ext-curl
 RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev libcurl4-openssl-dev \
     && docker-php-ext-install mbstring curl \
     && docker-php-ext-enable curl \
