@@ -27,6 +27,50 @@
     ];
   }
 
+  function compactMoney(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) {
+      return (Math.round((n / 1_000_000) * 10) / 10).toString().replace('.0', '') + 'M';
+    }
+    if (abs >= 1_000) {
+      return (Math.round((n / 1_000) * 10) / 10).toString().replace('.0', '') + 'K';
+    }
+    return Math.round(n).toLocaleString('ru-RU');
+  }
+
+  function fullMoney(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  }
+
+  function sumSeries(values) {
+    return (values || []).reduce((acc, value) => acc + (Number(value) || 0), 0);
+  }
+
+  function shareText(part, total) {
+    const p = Number(part);
+    const t = Number(total);
+    if (!Number.isFinite(p) || !Number.isFinite(t) || t <= 0) return '—';
+    return Math.round((p / t) * 100) + '%';
+  }
+
+  function shortLabel(label, maxLen = 18) {
+    const text = String(label || '').trim();
+    if (text.length <= maxLen) return text || '—';
+    return text.slice(0, Math.max(1, maxLen - 1)).trimEnd() + '…';
+  }
+
+  function headingId(text, index) {
+    const slug = String(text || '')
+      .toLowerCase()
+      .replace(/[^a-zа-яё0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '');
+    return 'ai-section-' + index + (slug ? '-' + slug : '');
+  }
+
   let chartInstances = [];
   let historyChartInstance = null;
   /** Сырой markdown последнего успешного ответа (копирование/скачивание). */
@@ -128,7 +172,7 @@
       },
       y: {
         position: 'left',
-        ticks: { color: muted },
+        ticks: { color: muted, callback: (value) => compactMoney(value) },
         grid: { color: grid },
         title: { display: true, text: '₽', color: muted, font: { size: 10 } },
       },
@@ -136,7 +180,7 @@
     if (hasFact) {
       scales.y1 = {
         position: 'right',
-        ticks: { color: muted },
+        ticks: { color: muted, callback: (value) => compactMoney(value) },
         grid: { drawOnChartArea: false },
         title: { display: true, text: 'YTD ₽', color: muted, font: { size: 10 } },
       };
@@ -197,12 +241,20 @@
           },
           options: {
             ...commonOpts,
+            plugins: {
+              ...commonOpts.plugins,
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => fullMoney(ctx.parsed.y),
+                },
+              },
+            },
             scales: {
               x: { ticks: { color: muted }, grid: { color: grid } },
               y: {
                 beginAtZero: true,
                 max: agingMax < 1 ? 1 : undefined,
-                ticks: { color: muted },
+                ticks: { color: muted, callback: (value) => compactMoney(value) },
                 grid: { color: grid },
               },
             },
@@ -232,6 +284,14 @@
             maintainAspectRatio: false,
             plugins: {
               legend: { position: 'right', labels: { color: text, font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const label = ctx.label ? ctx.label + ': ' : '';
+                    return label + fullMoney(ctx.parsed);
+                  },
+                },
+              },
             },
           },
         })
@@ -242,7 +302,8 @@
     const mgrCanvas = document.getElementById('chart-managers');
     if (mgrCanvas) {
       const hasMgr = mgr && mgr.labels && mgr.labels.length > 0;
-      const mLabels = hasMgr ? mgr.labels : ['нет данных в кэше'];
+      const fullMgrLabels = hasMgr ? mgr.labels : ['нет данных в кэше'];
+      const mLabels = fullMgrLabels.map((label) => shortLabel(label, 18));
       const mVals = hasMgr ? mgr.values : [0];
       const mMax = Math.max(...(mVals || []).map((x) => Number(x)), 0);
       chartInstances.push(
@@ -263,11 +324,20 @@
           options: {
             indexAxis: 'y',
             ...commonOpts,
+            plugins: {
+              ...commonOpts.plugins,
+              tooltip: {
+                callbacks: {
+                  title: (items) => fullMgrLabels[items[0]?.dataIndex ?? 0] || '',
+                  label: (ctx) => fullMoney(ctx.parsed.x),
+                },
+              },
+            },
             scales: {
               x: {
                 beginAtZero: true,
                 max: !hasMgr || mMax < 1 ? 1 : undefined,
-                ticks: { color: muted },
+                ticks: { color: muted, callback: (value) => compactMoney(value) },
                 grid: { color: grid },
               },
               y: { ticks: { color: muted }, grid: { display: false } },
@@ -304,9 +374,17 @@
           },
           options: {
             ...commonOpts,
+            plugins: {
+              ...commonOpts.plugins,
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ctx.dataset.label + ': ' + fullMoney(ctx.parsed.y),
+                },
+              },
+            },
             scales: {
               x: { stacked: true, ticks: { color: muted, maxRotation: 45 }, grid: { color: grid } },
-              y: { stacked: true, ticks: { color: muted }, grid: { color: grid } },
+              y: { stacked: true, ticks: { color: muted, callback: (value) => compactMoney(value) }, grid: { color: grid } },
             },
           },
         })
@@ -321,11 +399,12 @@
     const canvasProd = document.getElementById('chart-product');
     if (fp && fp.labels && fp.labels.length && canvasProd && wrapProd) {
       wrapProd.hidden = false;
+      const fullProdLabels = fp.labels || [];
       chartInstances.push(
         new Chart(canvasProd, {
           type: 'bar',
           data: {
-            labels: fp.labels,
+            labels: fullProdLabels.map((label) => shortLabel(label, 16)),
             datasets: [
               { label: 'Churn', data: fp.churn || [], backgroundColor: pal[1] + 'cc', stack: 'a' },
               { label: 'Downsell', data: fp.downsell || [], backgroundColor: pal[2] + 'cc', stack: 'a' },
@@ -333,9 +412,18 @@
           },
           options: {
             ...commonOpts,
+            plugins: {
+              ...commonOpts.plugins,
+              tooltip: {
+                callbacks: {
+                  title: (items) => fullProdLabels[items[0]?.dataIndex ?? 0] || '',
+                  label: (ctx) => ctx.dataset.label + ': ' + fullMoney(ctx.parsed.y),
+                },
+              },
+            },
             scales: {
               x: { stacked: true, ticks: { color: muted }, grid: { color: grid } },
-              y: { stacked: true, ticks: { color: muted }, grid: { color: grid } },
+              y: { stacked: true, ticks: { color: muted, callback: (value) => compactMoney(value) }, grid: { color: grid } },
             },
           },
         })
@@ -376,9 +464,17 @@
           },
           options: {
             ...commonOpts,
+            plugins: {
+              ...commonOpts.plugins,
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ctx.dataset.label + ': ' + fullMoney(ctx.parsed.y),
+                },
+              },
+            },
             scales: {
               x: { ticks: { color: muted, maxRotation: 45 }, grid: { color: grid } },
-              y: { ticks: { color: muted }, grid: { color: grid } },
+              y: { ticks: { color: muted, callback: (value) => compactMoney(value) }, grid: { color: grid } },
             },
           },
         })
@@ -431,6 +527,178 @@
     setFoot('ai-hint-managers', h.managers);
   }
 
+  function readBootstrapPayload() {
+    const raw = document.getElementById('ai-bootstrap');
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw.textContent || '{}');
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function renderVisualSummary(payload) {
+    buildCharts(payload);
+    applyChartHints(payload);
+    renderKpiStrip(payload);
+  }
+
+  function renderKpiStrip(payload) {
+    const host = document.getElementById('ai-kpi-strip');
+    if (!host) return;
+
+    const charts = payload?.charts || {};
+    const agingValues = charts?.dzAging?.values || [];
+    const dzTotal = sumSeries(agingValues);
+    const aging91 = Number(agingValues[agingValues.length - 1] || 0);
+
+    const churnValues = charts?.churnBySegment?.values || [];
+    const churnRisk = sumSeries(churnValues);
+    const segmentLabels = charts?.churnBySegment?.labels || [];
+    let mainSegment = '—';
+    let mainSegmentValue = 0;
+    if (segmentLabels.length && churnValues.length) {
+      const bestIdx = churnValues.reduce(
+        (best, current, idx) => (Number(current) > Number(churnValues[best] || 0) ? idx : best),
+        0
+      );
+      mainSegment = segmentLabels[bestIdx] || '—';
+      mainSegmentValue = Number(churnValues[bestIdx] || 0);
+    }
+
+    const managerLabels = charts?.dzByManager?.labels || [];
+    const managerValues = charts?.dzByManager?.values || [];
+    let topManager = '—';
+    let topManagerValue = 0;
+    if (managerLabels.length && managerValues.length) {
+      const topIdx = managerValues.reduce(
+        (best, current, idx) => (Number(current) > Number(managerValues[best] || 0) ? idx : best),
+        0
+      );
+      topManager = managerLabels[topIdx] || '—';
+      topManagerValue = Number(managerValues[topIdx] || 0);
+    }
+
+    let factTotal = 0;
+    if (charts?.factByProduct?.labels?.length) {
+      factTotal = sumSeries(charts.factByProduct.churn) + sumSeries(charts.factByProduct.downsell);
+    } else if (charts?.factMonthly?.labels?.length) {
+      factTotal = sumSeries(charts.factMonthly.churn) + sumSeries(charts.factMonthly.downsell);
+    }
+
+    const cards = [
+      {
+        label: 'Общая ДЗ',
+        value: dzTotal > 0 ? fullMoney(dzTotal) : '—',
+        meta:
+          dzTotal > 0
+            ? 'Критичная корзина 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal)
+            : 'Нет загруженного снимка дебиторки.',
+        tone: dzTotal > 0 ? 'danger' : 'muted',
+      },
+      {
+        label: 'Корзина 91+',
+        value: aging91 > 0 ? fullMoney(aging91) : '—',
+        meta:
+          dzTotal > 0
+            ? 'Доля от всей ДЗ: ' + shareText(aging91, dzTotal)
+            : 'Появится после загрузки данных по ДЗ.',
+        tone: aging91 > 0 ? 'warn' : 'muted',
+      },
+      {
+        label: 'Churn risk MRR',
+        value: churnRisk > 0 ? fullMoney(churnRisk) : '—',
+        meta:
+          churnRisk > 0
+            ? 'Крупнейший сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue)
+            : 'Нет содержательных данных по churn-риску.',
+        tone: churnRisk > 0 ? 'accent' : 'muted',
+      },
+      {
+        label: 'Топ-менеджер по ДЗ',
+        value: topManager,
+        meta:
+          topManagerValue > 0
+            ? 'Сумма в его портфеле: ' + fullMoney(topManagerValue)
+            : 'Нет менеджерской разбивки в текущем снимке.',
+        tone: topManagerValue > 0 ? 'ok' : 'muted',
+      },
+      {
+        label: 'Потери YTD',
+        value: factTotal > 0 ? fullMoney(factTotal) : '—',
+        meta:
+          factTotal > 0
+            ? 'Собрано из фактического отчёта потерь.'
+            : 'Нет доступного снимка по фактическим потерям.',
+        tone: factTotal > 0 ? 'danger' : 'muted',
+      },
+    ];
+
+    host.innerHTML = cards
+      .map(
+        (card) =>
+          '<div class="ai-kpi-card ai-kpi-card-' +
+          esc(card.tone) +
+          '">' +
+          '<div class="ai-kpi-label">' +
+          esc(card.label) +
+          '</div>' +
+          '<div class="ai-kpi-value">' +
+          esc(card.value) +
+          '</div>' +
+          '<div class="ai-kpi-meta">' +
+          esc(card.meta) +
+          '</div>' +
+          '</div>'
+      )
+      .join('');
+  }
+
+  function clearOutline() {
+    const outline = document.getElementById('ai-outline');
+    if (!outline) return;
+    outline.hidden = true;
+    outline.innerHTML = '';
+  }
+
+  function renderOutline() {
+    const output = document.getElementById('ai-output');
+    const outline = document.getElementById('ai-outline');
+    if (!output || !outline) return;
+
+    const headings = Array.from(output.querySelectorAll('h2, h3'));
+    if (!headings.length) {
+      clearOutline();
+      return;
+    }
+
+    headings.forEach((heading, index) => {
+      if (!heading.id) {
+        heading.id = headingId(heading.textContent || '', index + 1);
+      }
+    });
+
+    outline.hidden = false;
+    outline.innerHTML =
+      '<div class="ai-outline-title">Навигация по ответу</div>' +
+      '<div class="ai-outline-items">' +
+      headings
+        .map((heading) => {
+          const subClass = heading.tagName === 'H3' ? ' ai-outline-link-sub' : '';
+          return (
+            '<a class="ai-outline-link' +
+            subClass +
+            '" href="#' +
+            esc(heading.id) +
+            '">' +
+            esc(heading.textContent || '') +
+            '</a>'
+          );
+        })
+        .join('') +
+      '</div>';
+  }
+
   async function refreshChartsFromApi(payload) {
     const syncEl = document.getElementById('ai-charts-sync-status');
     const csrf =
@@ -472,8 +740,7 @@
           next = JSON.parse(raw.textContent || '{}');
         } catch (_) {}
       }
-      buildCharts(next);
-      applyChartHints(next);
+      renderVisualSummary(next);
       if (syncEl) {
         syncEl.textContent = 'Графики обновлены из Airtable.';
         syncEl.hidden = false;
@@ -516,8 +783,7 @@
       if (raw) {
         try {
           const payload = JSON.parse(raw.textContent || '{}');
-          buildCharts(payload);
-          applyChartHints(payload);
+          renderVisualSummary(payload);
           buildHistoryChart(payload.historyChart);
         } catch (_) {}
       }
@@ -589,6 +855,7 @@
     } else {
       out.innerHTML = '<pre style="white-space:pre-wrap;margin:0">' + esc(text) + '</pre>';
     }
+    renderOutline();
     afterRenderAdjustLayout(text);
   }
 
@@ -596,8 +863,29 @@
     return (document.getElementById('ai-custom-question')?.value || '').trim();
   }
 
+  function setCustomQuestionPanelOpen(open) {
+    const body = document.getElementById('ai-custom-question-body');
+    const btn = document.getElementById('btn-custom-question-toggle');
+    if (!body || !btn) return;
+    body.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = open ? '− Скрыть вопрос' : '＋ Добавить свой вопрос к данным';
+  }
+
+  function applyPresetQuestion(text) {
+    const textarea = document.getElementById('ai-custom-question');
+    if (!textarea) return;
+    setCustomQuestionPanelOpen(true);
+    textarea.value = text || '';
+    textarea.focus();
+    const pos = textarea.value.length;
+    try {
+      textarea.setSelectionRange(pos, pos);
+    } catch (_) {}
+  }
+
   function setGeneratingState(busy) {
-    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot'];
+    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot', 'btn-analyze-all', 'btn-compare'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.disabled = busy;
@@ -620,6 +908,7 @@
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
+    clearOutline();
 
     const out = document.getElementById('ai-output');
     if (out) {
@@ -737,8 +1026,7 @@
                 if (raw) {
                   try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {}
                 }
-                buildCharts(next);
-                applyChartHints(next);
+                renderVisualSummary(next);
               }
               if (data.historyChart) {
                 buildHistoryChart(data.historyChart);
@@ -803,6 +1091,7 @@
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
+    clearOutline();
     try {
       const r1 = await fetch('ai_insights_refresh_api.php', {
         method: 'POST',
@@ -826,8 +1115,7 @@
         const raw = document.getElementById('ai-bootstrap');
         let next = {};
         if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
-        buildCharts(next);
-        applyChartHints(next);
+        renderVisualSummary(next);
       }
 
       st.textContent = '2/2 Запрос к модели (краткий обзор всех дашбордов)…';
@@ -867,7 +1155,7 @@
         const raw = document.getElementById('ai-bootstrap');
         let next = {};
         if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
-        buildCharts(next); applyChartHints(next);
+        renderVisualSummary(next);
       }
       if (j.numberWarnings) applyNumberWarnings(j.numberWarnings);
     } catch (e) {
@@ -890,6 +1178,7 @@
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
+    clearOutline();
     try {
       const r1 = await fetch('ai_insights_refresh_api.php', {
         method: 'POST',
@@ -929,8 +1218,7 @@
             next = JSON.parse(raw.textContent || '{}');
           } catch (_) {}
         }
-        buildCharts(next);
-        applyChartHints(next);
+        renderVisualSummary(next);
       }
 
       st.textContent = '2/2 Запрос к модели…';
@@ -988,8 +1276,7 @@
             next = JSON.parse(raw.textContent || '{}');
           } catch (_) {}
         }
-        buildCharts(next);
-        applyChartHints(next);
+        renderVisualSummary(next);
       }
 
       const txt = String(j.text || '').trim();
@@ -1036,7 +1323,7 @@
     const st = document.getElementById('ai-status');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
-    btn.disabled = true;
+    setGeneratingState(true);
     st.textContent = 'Сохранение снимка…';
     st.className = 'ai-card-hint';
     try {
@@ -1075,8 +1362,7 @@
     try {
       payload = JSON.parse(raw.textContent || '{}');
     } catch (_) {}
-    buildCharts(payload);
-    applyChartHints(payload);
+    renderVisualSummary(payload);
     if (payload.historyChart && payload.historyChart.labels && payload.historyChart.labels.length) {
       buildHistoryChart(payload.historyChart);
     } else {
@@ -1089,15 +1375,16 @@
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
     document.getElementById('btn-analyze-all')?.addEventListener('click', analyzeAll);
 
-    // Custom question toggle
+    // Custom question toggle + presets
     document.getElementById('btn-custom-question-toggle')?.addEventListener('click', () => {
       const body = document.getElementById('ai-custom-question-body');
-      const btn = document.getElementById('btn-custom-question-toggle');
-      if (!body || !btn) return;
-      const open = !body.hidden;
-      body.hidden = open;
-      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-      btn.textContent = open ? '＋ Добавить свой вопрос к данным' : '− Скрыть вопрос';
+      if (!body) return;
+      setCustomQuestionPanelOpen(body.hidden);
+    });
+    document.querySelectorAll('[data-ai-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        applyPresetQuestion(btn.getAttribute('data-ai-preset') || '');
+      });
     });
 
     // Comparison UI

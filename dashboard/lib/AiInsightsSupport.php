@@ -8,7 +8,7 @@ require_once __DIR__ . '/AiInsightsContext.php';
  */
 final class AiInsightsSupport
 {
-    public const PROMPT_VERSION = 2;
+    public const PROMPT_VERSION = 3;
 
     /** @var resource|null */
     private static $lockFp = null;

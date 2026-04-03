@@ -21,15 +21,15 @@ $geminiConfigured = trim((string) (dashboard_env('DASHBOARD_GEMINI_API_KEY') ?: 
 $groqConfigured = trim((string) (dashboard_env('DASHBOARD_GROQ_API_KEY') ?: ($c['groq_api_key'] ?? ''))) !== '';
 $anthropicConfigured = trim((string) (dashboard_env('DASHBOARD_ANTHROPIC_API_KEY') ?: ($c['anthropic_api_key'] ?? ''))) !== '';
 $keyConfigured = $geminiConfigured || $groqConfigured || $anthropicConfigured;
-// Порядок: Groq → Gemini → Claude (Groq как основной, Gemini как резерв)
+// Порядок попыток: Gemini → Groq → Claude
 $allProviders = [
-    ['id' => 'groq',     'name' => 'Groq',     'ok' => $groqConfigured],
     ['id' => 'gemini',   'name' => 'Gemini',   'ok' => $geminiConfigured],
+    ['id' => 'groq',     'name' => 'Groq',     'ok' => $groqConfigured],
     ['id' => 'claude',   'name' => 'Claude',   'ok' => $anthropicConfigured],
 ];
 $configuredProviders = array_filter([
-    $groqConfigured ? 'Groq' : null,
     $geminiConfigured ? 'Gemini' : null,
+    $groqConfigured ? 'Groq' : null,
     $anthropicConfigured ? 'Claude' : null,
 ]);
 $historyChart = AiInsightsHistory::chartSeries(56);
@@ -102,7 +102,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=6">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=7">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -138,7 +138,7 @@ $bootstrapJson = json_encode(
     </div>
     <?php endif; ?>
 
-    <!-- Статусы AI-провайдеров (Groq → Gemini → Claude) -->
+    <!-- Статусы AI-провайдеров (Gemini → Groq → Claude) -->
     <div class="ai-provider-status-row">
       <?php foreach ($allProviders as $prov): ?>
       <div class="ai-provider-status <?= $prov['ok'] ? 'ai-provider-ok' : 'ai-provider-off' ?>">
@@ -151,12 +151,28 @@ $bootstrapJson = json_encode(
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
       <strong>Ключ AI не настроен.</strong> Нужен хотя бы один:
-      <code>DASHBOARD_GROQ_API_KEY</code> (Groq · основной),
-      <code>DASHBOARD_GEMINI_API_KEY</code> (Gemini · резерв),
+      <code>DASHBOARD_GEMINI_API_KEY</code> (Gemini · основной),
+      <code>DASHBOARD_GROQ_API_KEY</code> (Groq · резерв),
       <code>DASHBOARD_ANTHROPIC_API_KEY</code> (Claude · резерв).
       Задайте в <code>config.php</code> или переменных окружения. Ключи не храните в git.
     </div>
     <?php endif; ?>
+
+    <section class="ai-card ai-card-wide ai-snapshot-card">
+      <div class="ai-snapshot-head">
+        <div>
+          <h2>Снимок текущей ситуации</h2>
+          <p class="ai-card-hint">Быстрые ориентиры по текущему набору графиков: что сейчас выглядит самым тяжёлым и где смотреть в первую очередь.</p>
+        </div>
+      </div>
+      <div class="ai-kpi-strip" id="ai-kpi-strip">
+        <div class="ai-kpi-card ai-kpi-card-muted">
+          <div class="ai-kpi-label">Подготовка витрины</div>
+          <div class="ai-kpi-value">…</div>
+          <div class="ai-kpi-meta">Собираем краткий сводный слой из текущего снимка графиков.</div>
+        </div>
+      </div>
+    </section>
 
     <!-- Блок ошибок подключения (заполняется JS при ошибках Airtable/LLM) -->
     <div id="ai-error-status-wrap" hidden></div>
@@ -225,6 +241,12 @@ $bootstrapJson = json_encode(
             rows="3"
             maxlength="1000"
           ></textarea>
+          <div class="ai-preset-row" id="ai-preset-row">
+            <button type="button" class="ai-preset-chip" data-ai-preset="Собери конкретный план действий на 7 дней: выдели самые срочные риски, расставь приоритеты и дай короткие исполнимые шаги.">План на 7 дней</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сделай разбор по менеджерам: где у кого самая большая проблема, какие суммы или клиенты её формируют и что каждому делать дальше.">По менеджерам</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сфокусируйся на самых критичных долгах 91+ и выше: какие клиенты или зоны требуют немедленного вмешательства и какие действия нужны в первую очередь.">Критичные долги 91+</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сравни, где сейчас основной риск для выручки: дебиторка, churn или фактические потери. Дай короткое объяснение и приоритет действий.">Где главный риск</button>
+          </div>
           <p class="ai-card-hint">Вопрос добавляется к промпту — модель ответит на него, используя данные снимка.</p>
         </div>
       </div>
@@ -237,6 +259,7 @@ $bootstrapJson = json_encode(
         <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden>Развернуть полностью</button>
       </div>
       <div class="ai-number-warn" id="ai-number-warn" hidden></div>
+      <div class="ai-outline" id="ai-outline" hidden></div>
       <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
         <div class="ai-markdown ai-markdown-empty" id="ai-output">
           <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
@@ -286,7 +309,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=9" defer></script>
+  <script src="assets/ai_insights.js?v=10" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
