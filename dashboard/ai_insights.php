@@ -94,7 +94,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=6">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=8">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -112,6 +112,14 @@ $bootstrapJson = json_encode(
       </nav>
     </div>
     <div class="ai-topbar-right">
+      <div class="ai-topbar-provider-badge" id="ai-topbar-badge">
+        <?php if ($geminiConfigured || $groqConfigured || $anthropicConfigured): ?>
+          <span class="ai-topbar-badge-dot ai-topbar-badge-dot-ok"></span>
+          <?= $geminiConfigured ? 'Gemini' : ($groqConfigured ? 'Groq' : 'Claude') ?>
+        <?php else: ?>
+          <span class="ai-topbar-badge-dot ai-topbar-badge-dot-off"></span>AI не настроен
+        <?php endif; ?>
+      </div>
       <button type="button" class="btn-icon btn-theme-ai" id="btn-theme" title="Светлая тема" aria-label="Переключить тему">☀️</button>
     </div>
   </div>
@@ -119,7 +127,7 @@ $bootstrapJson = json_encode(
   <div class="ai-wrap">
     <header class="ai-hero">
       <h1>AI-аналитика</h1>
-      <p class="ai-hero-sub">Графики — снимок из Airtable (дебиторка, Churn) и отчётов; потери по месяцам — из Sheets → кэш. <strong>Сгенерировать анализ</strong> идёт в два HTTP-шага (синхронизация по API, затем модель) — реже обрывается по таймауту прокси. История снимков — <code>cache/ai-insights-history.json</code>. Пустые графики при открытии подгружаются в фоне.</p>
+      <p class="ai-hero-sub">AI анализирует данные вашей команды: дебиторку, отток и фактические потери. Нажмите <strong>«Анализировать»</strong> — результат появится через 15–30 секунд. Каждый анализ сохраняется в истории снимков для сравнения динамики.</p>
     </header>
 
     <p class="ai-sync-line" id="ai-charts-sync-status" <?= $chartsNeedAsyncRefresh ? '' : 'hidden' ?>><?= $chartsNeedAsyncRefresh ? 'Синхронизация с Airtable для графиков…' : '' ?></p>
@@ -130,6 +138,23 @@ $bootstrapJson = json_encode(
     </div>
     <?php endif; ?>
 
+    <!-- Статусы AI-провайдеров (свёрнуто — для отладки) -->
+    <details class="ai-provider-details">
+      <summary>Провайдеры AI</summary>
+      <div class="ai-provider-status-row">
+        <?php foreach ([
+            ['name' => 'Gemini', 'ok' => $geminiConfigured],
+            ['name' => 'Groq',   'ok' => $groqConfigured],
+            ['name' => 'Claude', 'ok' => $anthropicConfigured],
+        ] as $prov): ?>
+        <div class="ai-provider-status <?= $prov['ok'] ? 'ai-provider-ok' : 'ai-provider-off' ?>">
+          <span class="ai-provider-dot"></span>
+          <span class="ai-provider-name"><?= htmlspecialchars($prov['name'], ENT_QUOTES, 'UTF-8') ?></span>
+          <span class="ai-provider-state"><?= $prov['ok'] ? 'подключено' : 'ключ не задан' ?></span>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </details>
     <?php if (!$keyConfigured): ?>
     <div class="ai-banner ai-banner-warn">
       <strong>Ключ AI не настроен.</strong> Нужен хотя бы один:
@@ -194,11 +219,23 @@ $bootstrapJson = json_encode(
         <h2>Выводы и решения</h2>
         <div class="ai-insight-actions">
           <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" title="Сохранить текущие метрики в историю без вызова AI">Записать снимок метрик</button>
-          <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> title="Потоковая генерация — текст появляется по мере ответа модели">⚡ Стриминг</button>
-          <button type="button" class="btn-icon ai-btn-primary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?>>Сгенерировать анализ</button>
+          <button type="button" class="btn-icon ai-btn-primary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> title="Текст появляется сразу по мере ответа модели">⚡ Анализировать</button>
+          <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?> title="Ожидает полного ответа и показывает всё сразу">Без стриминга</button>
+          <button type="button" class="btn-icon ai-btn-force" id="btn-analyze-all" <?= $keyConfigured ? '' : 'disabled' ?> title="Принудительная синхронизация всех данных из Airtable без кэша + краткий анализ всех дашбордов">🔄 Все дашборды</button>
         </div>
       </div>
-      <p class="ai-card-hint" id="ai-status">«Сгенерировать анализ» — синхронизация Airtable → запрос к модели. «⚡ Стриминг» — то же, но текст появляется сразу по мере ответа. «Записать снимок» — только метрики без AI.</p>
+      <!-- Progress bar -->
+      <div class="ai-progress-wrap" id="ai-progress-wrap" hidden>
+        <div class="ai-progress-steps">
+          <div class="ai-progress-step" id="ai-step-sync">📡 Данные</div>
+          <div class="ai-progress-sep">›</div>
+          <div class="ai-progress-step" id="ai-step-model">🧠 Анализ</div>
+          <div class="ai-progress-sep">›</div>
+          <div class="ai-progress-step" id="ai-step-done">✓ Готово</div>
+        </div>
+      </div>
+      <p class="ai-card-hint" id="ai-status">«⚡ Анализировать» — синхронизация Airtable → модель, текст идёт потоком. «Без стриминга» — то же, но ожидает полного ответа. «Записать снимок» — только метрики без AI.</p>
+      <div class="ai-result-meta" id="ai-result-meta" hidden></div>
 
       <div class="ai-custom-question-wrap" id="ai-custom-question-wrap">
         <button type="button" class="ai-custom-question-toggle" id="btn-custom-question-toggle" aria-expanded="false">＋ Добавить свой вопрос к данным</button>
@@ -245,9 +282,9 @@ $bootstrapJson = json_encode(
       <div id="ai-compare-result" hidden></div>
     </section>
 
-    <section class="ai-card ai-cron-card">
-      <h2>Автоматический анализ (cron)</h2>
-      <p class="ai-card-hint">Запускайте анализ по расписанию без браузера — через <code>ai_insights_cron_api.php</code> с <code>DASHBOARD_API_SECRET</code>.</p>
+    <details class="ai-card ai-cron-details">
+      <summary>Автоматический анализ (cron) — для разработчиков</summary>
+      <p class="ai-card-hint" style="margin-top:10px">Запускайте анализ по расписанию без браузера — через <code>ai_insights_cron_api.php</code> с <code>DASHBOARD_API_SECRET</code>.</p>
       <pre class="ai-cron-example"># Каждый день в 9:00 UTC
 0 9 * * * curl -s -X POST https://your-domain/ai_insights_cron_api.php \
      -H "Authorization: Bearer &lt;DASHBOARD_API_SECRET&gt;" \
@@ -264,14 +301,14 @@ $bootstrapJson = json_encode(
 # DASHBOARD_AI_ALERT_OVERDUE_PCT=40   — алерт если просрочка &gt; 40% ДЗ
 # DASHBOARD_AI_ALERT_AGING90_PCT=20   — алерт если корзина 90+ &gt; 20% ДЗ
 # DASHBOARD_AI_ALERT_CHURN_MRR=500000 — алерт если Churn-риск MRR &gt; 500 000 ₽</pre>
-    </section>
+    </details>
   </div>
 
   <script type="application/json" id="ai-bootstrap"><?= $bootstrapJson ?></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=9" defer></script>
+  <script src="assets/ai_insights.js?v=11" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

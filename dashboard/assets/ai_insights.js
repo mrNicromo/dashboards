@@ -596,6 +596,67 @@
     return (document.getElementById('ai-custom-question')?.value || '').trim();
   }
 
+  function setCustomQuestionPanelOpen(open) {
+    const body = document.getElementById('ai-custom-question-body');
+    const btn = document.getElementById('btn-custom-question-toggle');
+    if (!body || !btn) return;
+    body.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = open ? '− Скрыть вопрос' : '＋ Добавить свой вопрос к данным';
+  }
+
+  function applyPresetQuestion(text) {
+    const textarea = document.getElementById('ai-custom-question');
+    if (!textarea) return;
+    setCustomQuestionPanelOpen(true);
+    textarea.value = text || '';
+    textarea.focus();
+    const pos = textarea.value.length;
+    try {
+      textarea.setSelectionRange(pos, pos);
+    } catch (_) {}
+  }
+
+  // ── Progress steps ────────────────────────────────────────────────────────
+  // step: 0 = hide, 1 = sync active, 2 = model active, 3 = done
+  function setProgressStep(step) {
+    const wrap = document.getElementById('ai-progress-wrap');
+    const s1 = document.getElementById('ai-step-sync');
+    const s2 = document.getElementById('ai-step-model');
+    const s3 = document.getElementById('ai-step-done');
+    if (!wrap || !s1 || !s2 || !s3) return;
+    if (step === 0) {
+      wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    s1.className = 'ai-progress-step' + (step === 1 ? ' ai-progress-step-active' : step > 1 ? ' ai-progress-step-done' : '');
+    s2.className = 'ai-progress-step' + (step === 2 ? ' ai-progress-step-active' : step > 2 ? ' ai-progress-step-done' : '');
+    s3.className = 'ai-progress-step' + (step === 3 ? ' ai-progress-step-done' : '');
+  }
+
+  // ── Result meta badge ─────────────────────────────────────────────────────
+  function showResultMeta(provider, model, ms) {
+    const el = document.getElementById('ai-result-meta');
+    if (!el) return;
+    const pName = { gemini: 'Gemini', groq: 'Groq', claude: 'Claude' }[provider] || provider || '';
+    const mName = model || '';
+    const time = ms != null ? Math.round(ms / 100) / 10 + 'с' : '';
+    const parts = [];
+    if (pName) parts.push('<span class="ai-result-meta-badge ai-result-meta-badge-ok">✓ ' + esc(pName) + '</span>');
+    if (mName && mName !== pName) parts.push('<span class="ai-result-meta-badge">' + esc(mName) + '</span>');
+    if (time) parts.push('<span class="ai-result-meta-badge">' + esc(time) + '</span>');
+    if (!parts.length) { el.hidden = true; return; }
+    el.innerHTML = parts.join('');
+    el.hidden = false;
+  }
+
+  function hideResultMeta() {
+    const el = document.getElementById('ai-result-meta');
+    if (el) { el.hidden = true; el.innerHTML = ''; }
+  }
+
+
   function setGeneratingState(busy) {
     const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot'];
     ids.forEach((id) => {
@@ -616,7 +677,9 @@
     }
 
     setGeneratingState(true);
-    st.textContent = '1/2 Синхронизация с Airtable…';
+    setProgressStep(1);
+    hideResultMeta();
+    st.textContent = '';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
@@ -681,7 +744,9 @@
               continue;
             }
             if (currentEvent === 'status') {
-              st.textContent = data.msg || '';
+              const msg = data.msg || '';
+              st.textContent = msg;
+              if (msg.startsWith('2/2') || msg.includes('модели')) setProgressStep(2);
             } else if (currentEvent === 'text') {
               streamText += data.t || '';
               if (out) {
@@ -702,6 +767,8 @@
               break;
             } else if (currentEvent === 'done') {
               done = true;
+              setProgressStep(3);
+              setTimeout(() => setProgressStep(0), 2000);
               // Финальный рендер без курсора
               lastMarkdownRaw = streamText;
               if (out) {
@@ -714,19 +781,11 @@
                 provider: data.provider,
               });
               showOutputToolbar(true);
+              showResultMeta(data.provider, data.llmModel, data.llmMs);
               const rw = document.getElementById('ai-restore-wrap');
               if (rw) rw.hidden = true;
 
-              const prov = data.provider || '';
-              const lm = data.llmModel ? ' · ' + data.llmModel : '';
-              const tm = data.llmMs != null ? ' · LLM ' + data.llmMs + ' ms' : '';
-              st.textContent =
-                'Готово (стриминг). В истории: ' +
-                (data.historyCount ?? '—') +
-                '. ' +
-                prov +
-                lm +
-                tm;
+              st.textContent = 'Снимок сохранён в истории: ' + (data.historyCount ?? '—');
               st.classList.add('ai-status-ok');
               st.classList.remove('ai-status-err');
 
@@ -755,9 +814,135 @@
       st.classList.add('ai-status-err');
     } finally {
       activeStreamController = null;
+      setProgressStep(0);
       setGeneratingState(false);
     }
   }
+
+  // ── Error status display ──────────────────────────────────────────────────
+  function clearErrorStatus() {
+    const wrap = document.getElementById('ai-error-status-wrap');
+    if (wrap) { wrap.innerHTML = ''; wrap.hidden = true; }
+  }
+
+  function renderErrorMeta(errMeta) {
+    if (!errMeta || !errMeta.type) return;
+    const wrap = document.getElementById('ai-error-status-wrap');
+    if (!wrap) return;
+    const iconMap = {
+      rate_limit: '⏳', no_auth: '🔑', no_access: '🚫',
+      filtered_table: '🔽', view_not_found: '👁', table_not_found: '❌',
+      llm_quota: '📊', llm_bad_key: '🔑', llm_unavailable: '🔌', unknown: '⚠️',
+    };
+    const isWarn = ['filtered_table', 'view_not_found'].includes(errMeta.type);
+    const icon = iconMap[errMeta.type] || '⚠️';
+    const linkHtml = errMeta.link
+      ? `<a class="ai-error-card-link" href="${esc(errMeta.link)}" target="_blank" rel="noopener">Открыть таблицу в Airtable →</a>`
+      : '';
+    wrap.innerHTML = `<div class="ai-error-card ${isWarn ? 'ai-error-card-warn' : ''}">
+      <div class="ai-error-card-icon">${icon}</div>
+      <div class="ai-error-card-body">
+        <div class="ai-error-card-title">${esc(errMeta.message)}</div>
+        <div class="ai-error-card-detail">${esc(errMeta.detail)}</div>
+        <div class="ai-error-card-action">💡 ${esc(errMeta.action)}</div>
+        ${linkHtml}
+      </div>
+    </div>`;
+    wrap.hidden = false;
+  }
+
+  // ── Analyze all dashboards (force no-cache) ───────────────────────────────
+  async function analyzeAll() {
+    const btn = document.getElementById('btn-analyze-all');
+    const st = document.getElementById('ai-status');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (!btn || !st) return;
+    setGeneratingState(true);
+    setProgressStep(1);
+    hideResultMeta();
+    clearErrorStatus();
+    st.textContent = '';
+    st.className = 'ai-card-hint';
+    showOutputToolbar(false);
+    applyNumberWarnings([]);
+    clearOutline();
+    try {
+      const r1 = await fetch('ai_insights_refresh_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ force: true }),
+      });
+      let j1 = {};
+      try { j1 = await r1.json(); } catch (_) {
+        st.textContent = 'Ответ синхронизации не JSON (HTTP ' + r1.status + ').';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (!j1.ok) {
+        if (j1.errorMeta) renderErrorMeta(j1.errorMeta);
+        st.textContent = j1.error || 'Ошибка синхронизации';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (j1.charts) {
+        mergeBootstrapCharts(j1.charts, j1.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        renderVisualSummary(next);
+      }
+
+      setProgressStep(2);
+      const r2 = await fetch('ai_insights_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({
+          skipRefresh: true,
+          customQuestion: 'Дай краткий обзор всех дашбордов: ДЗ, Churn-риск, фактические потери за год. Выдели 3 ключевых риска и 2 приоритетных действия.',
+        }),
+      });
+      let j = {};
+      try { j = await r2.json(); } catch (parseErr) {
+        st.textContent = 'Ответ сервера не JSON (HTTP ' + r2.status + ').';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (!j.ok) {
+        if (j.errorMeta) renderErrorMeta(j.errorMeta);
+        st.textContent = j.error || 'Ошибка запроса к модели';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      clearErrorStatus();
+      setProgressStep(3);
+      setTimeout(() => setProgressStep(0), 2000);
+      showResultMeta(j.provider, j.llmModel, j.llmMs);
+      st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—');
+      st.classList.add('ai-status-ok');
+      st.classList.remove('ai-status-err');
+      if (j.analysis) {
+        renderMarkdown(j.analysis);
+        lastMarkdownRaw = j.analysis;
+        showOutputToolbar(true);
+      }
+      if (j.historyCount != null) updateHistoryUi(j.historyCount, true);
+      if (j.charts) {
+        mergeBootstrapCharts(j.charts, j.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        renderVisualSummary(next);
+      }
+      if (j.numberWarnings) applyNumberWarnings(j.numberWarnings);
+    } catch (e) {
+      st.textContent = 'Сетевая ошибка: ' + String(e);
+      st.classList.add('ai-status-err');
+    } finally {
+      setProgressStep(0);
+      setGeneratingState(false);
+    }
+  }
+
 
   async function generate() {
     const btn = document.getElementById('btn-generate');
@@ -766,7 +951,10 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     setGeneratingState(true);
-    st.textContent = '1/2 Синхронизация с Airtable (API)…';
+    setProgressStep(1);
+    hideResultMeta();
+    clearErrorStatus();
+    st.textContent = '';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
@@ -811,7 +999,8 @@
         applyChartHints(next);
       }
 
-      st.textContent = '2/2 Запрос к модели…';
+      setProgressStep(2);
+      st.textContent = '';
       const r2 = await fetch('ai_insights_api.php', {
         method: 'POST',
         headers: {
@@ -839,20 +1028,10 @@
         st.classList.add('ai-status-err');
         return;
       }
-      const prov = j.provider ? j.provider : '';
-      const lm = j.llmModel ? ' · ' + j.llmModel : '';
-      const tm =
-        j.refreshMs != null && j.llmMs != null
-          ? ' · sync ' + j.refreshMs + ' ms · LLM ' + j.llmMs + ' ms'
-          : '';
-      st.textContent =
-        'Готово. В истории снимков: ' +
-        (j.historyCount ?? '—') +
-        '. ' +
-        prov +
-        lm +
-        tm +
-        ' Графики соответствуют этому же снимку.';
+      setProgressStep(3);
+      setTimeout(() => setProgressStep(0), 2000);
+      showResultMeta(j.provider, j.llmModel, j.llmMs);
+      st.textContent = 'Снимок сохранён в истории: ' + (j.historyCount ?? '—');
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
 
@@ -904,6 +1083,7 @@
       st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
       st.classList.add('ai-status-err');
     } finally {
+      setProgressStep(0);
       setGeneratingState(false);
     }
   }

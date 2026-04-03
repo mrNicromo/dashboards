@@ -511,6 +511,149 @@
   color: var(--muted) !important;
 }
 
+/* ── Topbar provider badge ───────────────────── */
+.ai-topbar-provider-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+  white-space: nowrap;
+}
+.ai-topbar-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ai-topbar-badge-dot-ok  { background: var(--ok, #34C759); box-shadow: 0 0 4px rgba(52,199,89,.6); }
+.ai-topbar-badge-dot-off { background: var(--muted, #888); }
+
+/* ── Provider details (collapsed by default) ─ */
+.ai-provider-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.ai-provider-details summary {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+  list-style: none;
+}
+.ai-provider-details summary::-webkit-details-marker { display: none; }
+.ai-provider-details summary::before {
+  content: '▸ ';
+  font-size: 0.7rem;
+}
+.ai-provider-details[open] summary::before { content: '▾ '; }
+.ai-provider-details summary:hover { color: var(--text); }
+.ai-provider-details .ai-provider-status-row {
+  padding: 4px 14px 12px;
+}
+
+/* ── Progress step bar ───────────────────────── */
+.ai-progress-wrap {
+  margin: 0 0 8px;
+}
+.ai-progress-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ai-progress-step {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.77rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--elevated);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+.ai-progress-step-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(10,132,255,0.08);
+  font-weight: 700;
+}
+.ai-progress-step-done {
+  border-color: var(--ok, #34C759);
+  color: var(--ok, #34C759);
+  background: rgba(52,199,89,0.08);
+}
+.ai-progress-sep {
+  font-size: 0.82rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+/* ── Result meta badge ───────────────────────── */
+.ai-result-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.ai-result-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+.ai-result-meta-badge-ok {
+  border-color: rgba(52,199,89,0.35);
+  color: var(--ok, #34C759);
+  background: rgba(52,199,89,0.07);
+}
+
+/* ── Output fade-in ──────────────────────────── */
+@keyframes ai-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ai-markdown:not(.ai-markdown-empty) {
+  animation: ai-fade-in 0.25s ease-out both;
+}
+
+/* ── Cron details ────────────────────────────── */
+.ai-cron-details summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+  list-style: none;
+}
+.ai-cron-details summary::-webkit-details-marker { display: none; }
+.ai-cron-details summary::before {
+  content: '▸ ';
+  font-size: 0.78rem;
+}
+.ai-cron-details[open] summary::before { content: '▾ '; }
+.ai-cron-details summary:hover { color: var(--text); }
+
 /* ── Mobile ──────────────────────────────────── */
 @media (max-width: 600px) {
   .ai-topbar {
