@@ -230,6 +230,7 @@
             <a class="cf-nav-tab" href="churn.php">⚠ Угроза Churn</a>
             <span class="cf-nav-tab cf-nav-tab-active">📉 Потери</span>
             <a class="cf-nav-tab" href="manager.php">💰 ДЗ</a>
+            <a class="cf-nav-tab" href="ai_insights.php">🤖 AI</a>
           </nav>
         </div>
         <div class="cf-topbar-right">

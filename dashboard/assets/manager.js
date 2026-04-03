@@ -6,11 +6,11 @@
   'use strict';
 
   // ─── Константы ────────────────────────────────────────────
-  const GROUPS     = ['16-30', '31-60', '61-90', '91+'];
-  const GRP_LABELS = { '16-30': '16–30 дн.', '31-60': '31–60 дн.', '61-90': '61–90 дн.', '91+': '91+ дн.' };
-  const GRP_CSS    = { '16-30': 'grp-16-30', '31-60': 'grp-31-60', '61-90': 'grp-61-90', '91+': 'grp-91plus' };
-  const BAR_CSS    = { '16-30': 'bar-16-30', '31-60': 'bar-31-60', '61-90': 'bar-61-90', '91+': 'bar-91plus' };
-  const CHIP_CSS   = { '16-30': 'chip-16-30', '31-60': 'chip-31-60', '61-90': 'chip-61-90', '91+': 'chip-91plus' };
+  const GROUPS     = ['0-15', '16-30', '31-60', '61-90', '91+'];
+  const GRP_LABELS = { '0-15': '0–15 дн.', '16-30': '16–30 дн.', '31-60': '31–60 дн.', '61-90': '61–90 дн.', '91+': '91+ дн.' };
+  const GRP_CSS    = { '0-15': 'grp-0-15', '16-30': 'grp-16-30', '31-60': 'grp-31-60', '61-90': 'grp-61-90', '91+': 'grp-91plus' };
+  const BAR_CSS    = { '0-15': 'bar-0-15', '16-30': 'bar-16-30', '31-60': 'bar-31-60', '61-90': 'bar-61-90', '91+': 'bar-91plus' };
+  const CHIP_CSS   = { '0-15': 'chip-0-15', '16-30': 'chip-16-30', '31-60': 'chip-31-60', '61-90': 'chip-61-90', '91+': 'chip-91plus' };
   const LS_KEY     = 'mgr_excl_v1';
   const AUTO_MS    = 5 * 60 * 1000; // 5 минут
 
@@ -21,6 +21,16 @@
     if (!s) return '—';
     const p = String(s).slice(0, 10).split('-');
     return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : s;
+  };
+  const weekdayRu = iso => {
+    const p = String(iso || '').slice(0, 10).split('-');
+    if (p.length !== 3) return '';
+    const dt = new Date(+p[0], +p[1] - 1, +p[2]);
+    return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][dt.getDay()] || '';
+  };
+  const fmtDateWd = s => {
+    const w = weekdayRu(s);
+    return w ? `${fmtDate(s)} · ${w}` : fmtDate(s);
   };
   const esc = s => String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -40,6 +50,15 @@
     const display = site.replace(/^https?:\/\//i, '').replace(/\/$/, '');
     const href = site.startsWith('http') ? site : 'https://' + site;
     return `<a class="site-badge" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(site)}">${esc(display)}</a>`;
+  };
+  /** Клиент в таблицах оплат: ссылка из API или жирный текст */
+  const payClientHtml = r => {
+    const name = r.client || '';
+    const u = r.clientUrl;
+    if (u && /^https?:\/\//i.test(String(u))) {
+      return `<a class="wk-pay-client-link" href="${esc(u)}" target="_blank" rel="noopener">${esc(name)}</a>`;
+    }
+    return `<strong>${esc(name)}</strong>`;
   };
 
   // ─── Состояние ────────────────────────────────────────────
@@ -61,6 +80,10 @@
     detailPage:     0,
     modalClient:    null,
     detailGrouped:  false,
+    weeklyPayExpanded: false,
+    /** null — недельные столбцы; weekEnd (Y-m-d) — разворот графика по дням этой недели */
+    payWeekDrill:      null,
+    payTableSort:      { col: 'date', dir: 'desc' },
   };
 
   const saveExcluded = () => localStorage.setItem(LS_KEY, JSON.stringify([...state.excluded]));
@@ -155,6 +178,7 @@
         ${renderAlertBanner(computed, d)}
         ${renderKpiCards(computed, d)}
         ${renderFocusWeekSection(d, computed)}
+        ${renderFocus91MrrSection(d)}
         ${renderTop10Section(computed)}
         ${renderChampionsSection(d, computed)}
         ${renderManagerTableSection(d)}
@@ -317,7 +341,7 @@
                 ${healthText}
               </span>
             </h2>
-            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn.php" style="color:var(--accent)">Открыть полный отчёт →</a></p>
+            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn.php" class="link-accent">Открыть полный отчёт →</a></p>
           </div>
           <a href="churn.php" class="btn-secondary" style="align-self:center">Полный отчёт ↗</a>
         </div>
@@ -418,7 +442,7 @@
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">📉 Фактические потери выручки (Churn)</h2>
-            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn_fact.php" style="color:var(--accent)">Открыть полный отчёт →</a></p>
+            <p class="mgr-section-hint">Обновлено: ${esc(updatedAt)} · <a href="churn_fact.php" class="link-accent">Открыть полный отчёт →</a></p>
           </div>
           <a href="churn_fact.php" class="btn-secondary" style="align-self:center">Полный отчёт ↗</a>
         </div>
@@ -463,6 +487,7 @@
             <a class="mgr-nav-tab" href="churn.php">⚠ Угроза Churn</a>
             <a class="mgr-nav-tab" href="churn_fact.php">📉 Потери</a>
             <span class="mgr-nav-tab mgr-nav-tab-active">💰 ДЗ</span>
+            <a class="mgr-nav-tab" href="ai_insights.php">🤖 AI</a>
           </nav>
         </div>
         <div class="mgr-meta">
@@ -561,15 +586,16 @@
 
   // ─── Фокус недели: критичные клиенты 91+ с MRR ───────────
   function renderFocusWeekSection(d, computed) {
-    // Клиенты в 91+ с ненулевым MRR — это приоритет #1 для работы
-    const focused = (d.allClients || [])
-      .filter(c => (c.groups?.['91+'] || 0) > 0 && (c.mrr || 0) > 0)
-      .sort((a, b) => (b.groups['91+'] || 0) - (a.groups['91+'] || 0))
-      .slice(0, 5);
+    // Берем TOP-5 по сумме долга из API (бэкенд), fallback — локальный пересчет.
+    const focused = (Array.isArray(d.top5Dz) && d.top5Dz.length > 0)
+      ? d.top5Dz
+      : (d.allClients || [])
+          .sort((a, b) => (b.total || 0) - (a.total || 0))
+          .slice(0, 5);
 
     if (!focused.length) return '';
 
-    const totalCrit = focused.reduce((s, c) => s + (c.groups['91+'] || 0), 0);
+    const totalCrit = focused.reduce((s, c) => s + (c.total || 0), 0);
     const totalMrr  = focused.reduce((s, c) => s + (c.mrr || 0), 0);
 
     // Максимальная просрочка в днях по клиенту из allRows (формат dueDate: d/m/yyyy)
@@ -586,7 +612,7 @@
     }
 
     const rows = focused.map((c, i) => {
-      const debt91 = c.groups['91+'] || 0;
+      const debtTotal = c.total || 0;
       const days   = maxDays[c.client];
       const daysStr = days ? `${days} дн.` : '91+ дн.';
       const daysCls = days > 180 ? 'focus-crit' : days > 90 ? 'focus-warn' : '';
@@ -596,7 +622,7 @@
           <span class="focus-num">${i+1}</span>
           <span class="focus-name" title="${esc(c.client)}">${c.site ? esc(c.site.replace(/^https?:\/\//i,'').replace(/\/$/,'')) : esc(c.client)}</span>
           <span class="focus-mgr muted">${esc(c.manager || '—')}</span>
-          <span class="focus-debt">${fmtRub(debt91)}</span>
+          <span class="focus-debt">${fmtRub(debtTotal)}</span>
           <span class="focus-days ${daysCls}" title="Максимальная просрочка по счетам клиента">⏱ ${daysStr}</span>
         </div>`;
     }).join('');
@@ -605,10 +631,44 @@
       <div class="mgr-section focus-week-section">
         <div class="mgr-section-head">
           <div>
-            <h2 class="mgr-section-title">🔥 Фокус недели — 91+ с высоким MRR
-              <span class="mgr-help" title="Клиенты с долгом в корзине 91+ дней и ненулевым MRR (данные из Airtable). Сортировка по сумме долга 91+. Подсветка строк: долгая просрочка по счетам (>90 / >180 дней).">?</span>
+            <h2 class="mgr-section-title">🔥 Фокус недели — ТОП-5 по ДЗ
+              <span class="mgr-help" title="Клиенты с наибольшей суммой долга (данные из API). Сортировка по общей сумме ДЗ. Подсветка строк: долгая просрочка по счетам (>90 / >180 дней).">?</span>
             </h2>
-            <p class="mgr-section-hint">Требуют звонка или эскалации · Долг 91+: ${fmtRub(totalCrit)} · MRR под угрозой: ${fmtRub(totalMrr)}</p>
+            <p class="mgr-section-hint">Требуют звонка или эскалации · Общий долг TOP-5: ${fmtRub(totalCrit)} · MRR под угрозой: ${fmtRub(totalMrr)}</p>
+          </div>
+        </div>
+        <div class="focus-list">${rows}</div>
+      </div>`;
+  }
+
+  // ─── Доп. фокус: 91+ с высоким MRR (старый блок) ──────────
+  function renderFocus91MrrSection(d) {
+    const focused = (d.allClients || [])
+      .filter(c => (c.groups?.['91+'] || 0) > 0)
+      .sort((a, b) => (b.groups?.['91+'] || 0) - (a.groups?.['91+'] || 0))
+      .slice(0, 5);
+
+    if (!focused.length) return '';
+
+    const totalCrit91 = focused.reduce((s, c) => s + (c.groups?.['91+'] || 0), 0);
+    const totalMrr    = focused.reduce((s, c) => s + (c.mrr || 0), 0);
+
+    const rows = focused.map((c, i) => `
+      <div class="focus-row">
+        <span class="focus-num">${i + 1}</span>
+        <span class="focus-name" title="${esc(c.client)}">${c.site ? esc(c.site.replace(/^https?:\/\//i,'').replace(/\/$/,'')) : esc(c.client)}</span>
+        <span class="focus-mgr muted">${esc(c.manager || '—')}</span>
+        <span class="focus-debt">${fmtRub(c.groups?.['91+'] || 0)}</span>
+        <span class="focus-days" title="Долг в корзине 91+">91+ дн.</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="mgr-section focus-week-section">
+        <div class="mgr-section-head">
+          <div>
+            <h2 class="mgr-section-title">🔥 Фокус 91+ с высоким MRR</h2>
+            <p class="mgr-section-hint">Критичный долг 91+: ${fmtRub(totalCrit91)} · MRR под риском: ${fmtRub(totalMrr)}</p>
           </div>
         </div>
         <div class="focus-list">${rows}</div>
@@ -706,17 +766,6 @@
   function renderChampionsSection(d, computed) {
     const mrr = d.mrr || 0;
 
-    // managerMrr: предпочитаем данные с бэкенда (d.managerMrr),
-    // fallback — считаем из allClients (MRR клиентов в долге)
-    const managerMrr = d.managerMrr || (() => {
-      const m = {};
-      for (const c of (d.allClients || [])) {
-        const mgr = c.manager || 'Не указан';
-        m[mgr] = (m[mgr] || 0) + (c.mrr || 0);
-      }
-      return m;
-    })();
-
     // Берём менеджеров, пересчитываем по активным группам, сортируем
     const mgrs = (d.byManager || [])
       .map(m => {
@@ -730,17 +779,12 @@
     if (!mgrs.length) return '';
 
     const maxTotal   = mgrs[0].filteredTotal;
-    const totalDebt  = mgrs.reduce((s, m) => s + m.filteredTotal, 0);
 
     const rows = mgrs.map((m, i) => {
       const barW    = maxTotal > 0 ? (m.filteredTotal / maxTotal * 100).toFixed(1) : 0;
       const pctMrr  = mrr > 0 ? (m.filteredTotal / mrr * 100).toFixed(1) : null;
-      const pctAll  = totalDebt > 0 ? (m.filteredTotal / totalDebt * 100).toFixed(0) : 0;
-      const ownMrr  = managerMrr[m.manager] || 0;
-      const pctOwn  = ownMrr > 0 ? (m.filteredTotal / ownMrr * 100).toFixed(1) : null;
       const medal   = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
       const mrrCls  = pctMrr === null ? '' : +pctMrr > 15 ? 'champ-pct-danger' : +pctMrr > 8 ? 'champ-pct-warn' : 'champ-pct-ok';
-      const ownCls  = pctOwn === null ? 'muted' : +pctOwn > 25 ? 'champ-pct-danger' : +pctOwn > 12 ? 'champ-pct-warn' : 'champ-pct-ok';
 
       return `
         <tr class="champ-row">
@@ -752,8 +796,6 @@
             </div>
           </td>
           <td class="num champ-total">${fmtRub(m.filteredTotal)}</td>
-          <td class="num champ-share muted">${pctAll}% от ПДЗ</td>
-          <td class="num ${ownCls}" title="ДЗ / портфель MRR менеджера (${fmtRub(ownMrr)})">${pctOwn !== null ? pctOwn + '% портфеля' : '—'}</td>
           <td class="num ${mrrCls}">${pctMrr !== null ? pctMrr + '% MRR' : '—'}</td>
         </tr>`;
     });
@@ -763,7 +805,7 @@
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">🏆 Чемпионы по ПДЗ
-              <span class="mgr-help" title="Рейтинг менеджеров по сумме дебиторской задолженности.&#10;% от общего ПДЗ — доля менеджера в общей сумме долгов.&#10;% портфеля — ДЗ / MRR его клиентов (здоровье портфеля). Норма ≤12%, критично >25%.&#10;% от MRR — ДЗ / общая выручка компании. Норма ≤8%.">?</span>
+              <span class="mgr-help" title="Рейтинг менеджеров по сумме дебиторской задолженности. Показан объём ДЗ и доля к общему MRR компании.">?</span>
             </h2>
             <p class="mgr-section-hint">Кто держит наибольший объём просрочки · ${mgrs.length} менеджеров</p>
           </div>
@@ -775,8 +817,6 @@
               <th>Менеджер</th>
               <th style="min-width:160px">Доля в портфеле</th>
               <th style="text-align:right">Сумма ДЗ</th>
-              <th style="text-align:right">% от общего ПДЗ</th>
-              <th style="text-align:right">% портфеля</th>
               <th style="text-align:right">% от MRR</th>
             </tr></thead>
             <tbody>${rows.join('')}</tbody>
@@ -889,13 +929,13 @@
     const tableHtml = (rows, emptyMsg) => {
       if (!rows || rows.length === 0) return `<div class="empty-state">${emptyMsg}</div>`;
       return `<div class="mgr-table-wrap"><table class="mgr-table">
-        <thead><tr><th class="idx">#</th><th>Клиент</th><th style="text-align:right">Сумма</th><th style="text-align:center">Дата</th></tr></thead>
+        <thead><tr><th class="idx">#</th><th>Клиент</th><th class="num">Сумма</th><th class="td-date">Дата</th></tr></thead>
         <tbody>${rows.map((r, i) => `
           <tr>
             <td class="idx">${i + 1}</td>
-            <td><strong>${esc(r.client)}</strong></td>
-            <td class="num" style="color:var(--ok);font-weight:700">${fmtRub(r.amount)}</td>
-            <td class="num" style="text-align:center;color:var(--muted);font-size:0.82em">${fmtDate(r.date || '')}</td>
+            <td>${payClientHtml(r)}</td>
+            <td class="num pay-amt">${fmtRub(r.amount)}</td>
+            <td class="td-date">${fmtDate(r.date || '')}</td>
           </tr>`).join('')}
         </tbody>
       </table></div>`;
@@ -915,7 +955,7 @@
         <div class="pay-summary">
           <div class="pay-stat">
             <span class="pay-stat-lbl">Итого собрано</span>
-            <span class="pay-stat-val" style="color:var(--ok)">${fmtRub(p.weekTotal)}</span>
+            <span class="pay-stat-val pay-stat-val--money">${fmtRub(p.weekTotal)}</span>
           </div>
           <div class="pay-stat">
             <span class="pay-stat-lbl">Клиентов оплатили</span>
@@ -997,42 +1037,165 @@
       </div>`;
   }
 
+  function filterPayLinesToWeekRange(lines, bar) {
+    if (!bar || !Array.isArray(lines)) return [];
+    const ws = String(bar.weekStart || '');
+    const we = String(bar.weekEnd || '');
+    if (!ws || !we) return lines;
+    return lines.filter(p => {
+      const dt = String(p.date || '').slice(0, 10);
+      return dt >= ws && dt <= we;
+    });
+  }
+
+  function getPayLinesForTable(d) {
+    const wp = d.weeklyPayments;
+    const bars = wp?.bars || [];
+    const drill = state.payWeekDrill;
+    const fromAllForWeek = bar => {
+      const ws = bar?.weekStart;
+      const we = bar?.weekEnd;
+      if (!ws || !we) return [];
+      const all = d.payments?.all || [];
+      return all.filter(p => {
+        const dt = String(p.date || '').slice(0, 10);
+        return dt >= ws && dt <= we;
+      });
+    };
+    if (drill) {
+      const bar = bars.find(b => String(b.weekEnd) === String(drill));
+      if (!bar) return [];
+      let lines = Array.isArray(bar.lines) ? [...bar.lines] : [];
+      if (!lines.length) lines = fromAllForWeek(bar);
+      return filterPayLinesToWeekRange(lines, bar);
+    }
+    return Array.isArray(d.payments?.all) ? d.payments.all : [];
+  }
+
+  function sortPayLines(lines) {
+    const { col, dir } = state.payTableSort;
+    const arr = [...lines];
+    const sign = dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (col === 'client') cmp = String(a.client || '').localeCompare(String(b.client || ''), 'ru');
+      else if (col === 'amount') cmp = (a.amount || 0) - (b.amount || 0);
+      else cmp = String(a.date || '').localeCompare(String(b.date || ''));
+      return cmp * sign;
+    });
+    return arr;
+  }
+
   // ─── Еженедельный чарт оплат ──────────────────────────────
   function renderWeeklyPayChart(d) {
     const wp = d.weeklyPayments;
     if (!wp || !Array.isArray(wp.bars) || wp.bars.length < 2) return '';
 
     const bars = wp.bars;
-    const maxVal = Math.max(...bars.map(b => b.total || 0), 1);
+    const drill = state.payWeekDrill;
+    const drilledBar = drill ? bars.find(b => String(b.weekEnd) === String(drill)) : null;
 
-    const cols = bars.map((b, i) => {
-      const h = ((b.total || 0) / maxVal * 100).toFixed(1);
-      const isLast = i === bars.length - 1;
-      const d2 = String(b.weekEnd || '').slice(5);
-      const [m, day] = d2.split('-');
-      const label = day && m ? `${day}.${m}` : d2;
-      return `
-        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}">
+    let chartCols = '';
+    let chartHint = '';
+    let maxVal = 1;
+
+    if (drilledBar && Array.isArray(drilledBar.days) && drilledBar.days.length) {
+      maxVal = Math.max(...drilledBar.days.map(x => x.total || 0), 1);
+      const w0 = fmtDate(drilledBar.weekStart);
+      const w1 = fmtDate(drilledBar.weekEnd);
+      chartHint = `<p class="wk-pay-drill-hint"><button type="button" class="wk-pay-back-btn" data-pay-back>← Все недели</button><span class="wk-pay-drill-range">Дни недели ${esc(w0)} — ${esc(w1)}</span></p>`;
+      chartCols = drilledBar.days.map((day) => {
+        const h = ((day.total || 0) / maxVal * 100).toFixed(1);
+        const ds = String(day.date || '').slice(5);
+        const [m, dd] = ds.split('-');
+        const label = dd && m ? `${dd}.${m}` : ds;
+        const wd = weekdayRu(day.date);
+        return `
+        <div class="wkly-col wkly-col-day">
+          <div class="wkly-bars">
+            <div class="wkly-bar wkly-bar-pay" style="height:${h}%"
+                 title="${esc(day.date)}: ${fmtRub(day.total)}"></div>
+          </div>
+          <div class="wkly-label">${esc(label)}${wd ? `<span class="wkly-wd">${esc(wd)}</span>` : ''}</div>
+        </div>`;
+      }).join('');
+    } else {
+      maxVal = Math.max(...bars.map(b => b.total || 0), 1);
+      chartCols = bars.map((b, i) => {
+        const h = ((b.total || 0) / maxVal * 100).toFixed(1);
+        const isLast = i === bars.length - 1;
+        const d2 = String(b.weekEnd || '').slice(5);
+        const [m, day] = d2.split('-');
+        const label = day && m ? `${day}.${m}` : d2;
+        const active = drill && String(b.weekEnd) === String(drill);
+        return `
+        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}${active ? ' wkly-col-active' : ''}" data-pay-week="${esc(b.weekEnd)}" title="Клик — разбивка по дням">
           <div class="wkly-bars">
             <div class="wkly-bar wkly-bar-pay" style="height:${h}%"
                  title="Оплаты: ${fmtRub(b.total)}"></div>
           </div>
           <div class="wkly-label">${esc(label)}</div>
         </div>`;
-    });
+      }).join('');
+      chartHint = '<p class="wk-pay-chart-hint muted">Клик по столбцу недели — график по дням и список оплат за эту неделю</p>';
+    }
 
     const lastBar = bars[bars.length - 1];
     const prevBar = bars[bars.length - 2];
     const delta = (lastBar.total || 0) - (prevBar.total || 0);
-    const deltaCls = delta > 0 ? 'delta-down' : delta < 0 ? 'delta-up' : ''; // оплаты: рост = хорошо
+    const deltaCls = delta > 0 ? 'delta-down' : delta < 0 ? 'delta-up' : '';
     const deltaSign = delta > 0 ? '+' : '';
 
+    const tableLines = sortPayLines(getPayLinesForTable(d));
+    const tblSum = tableLines.reduce((s, r) => s + (r.amount || 0), 0);
+    const tblUniq = new Set(tableLines.map(r => r.client)).size;
+    const fromTop10 = d.payments?.fromTop10 || [];
+    const isCurrentContext = !drill || (lastBar && String(lastBar.weekEnd) === String(drill));
+    const sortMark = c => (state.payTableSort.col === c ? (state.payTableSort.dir === 'asc' ? '↑' : '↓') : '↕');
+
+    const details = state.weeklyPayExpanded ? `
+      <div class="wk-pay-expand">
+        <div class="wk-pay-expand-kpis">
+          <span>В таблице: <strong>${fmtRub(tblSum)}</strong></span>
+          <span>Строк оплат: <strong>${tableLines.length}</strong></span>
+          <span>Уник. клиентов: <strong>${tblUniq}</strong></span>
+          ${isCurrentContext ? `<span>Из ТОП-10 дебиторов: <strong>${fromTop10.length}</strong></span>` : ''}
+        </div>
+        <div class="mgr-section-sub">Все оплаты выбранного периода</div>
+        <div class="mgr-table-wrap wk-pay-full-table">
+          <table class="mgr-table mgr-table-pay-all">
+            <thead><tr>
+              <th class="idx">#</th>
+              <th><button type="button" class="wk-pay-sort" data-pay-sort="date">Дата ${sortMark('date')}</button></th>
+              <th><button type="button" class="wk-pay-sort" data-pay-sort="client">Клиент ${sortMark('client')}</button></th>
+              <th class="num"><button type="button" class="wk-pay-sort" data-pay-sort="amount">Сумма ${sortMark('amount')}</button></th>
+            </tr></thead>
+            <tbody>
+              ${tableLines.length ? tableLines.map((r, i) => `
+                <tr>
+                  <td class="idx">${i + 1}</td>
+                  <td class="wk-pay-dt">${esc(fmtDateWd(r.date || ''))}</td>
+                  <td>${payClientHtml(r)}</td>
+                  <td class="num wk-pay-amt">${fmtRub(r.amount)}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="4" class="empty-state">Нет оплат за период</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        ${isCurrentContext && fromTop10.length ? `
+        <div class="wk-pay-top10-note">
+          <span class="mgr-section-sub">Оплатили из ТОП-10 дебиторов (текущий срез ДЗ)</span>
+          <div class="wk-pay-chips">${fromTop10.map(r => `<span class="wk-pay-chip">${esc(r.client)} · ${fmtRub(r.amount)}</span>`).join('')}</div>
+        </div>` : (!isCurrentContext ? '<p class="muted wk-pay-top10-note">Сверка с ТОП-10 дебиторов доступна для текущей отчётной недели в общем виде графика.</p>' : '')}
+      </div>
+    ` : '';
+
     return `
-      <div class="mgr-section">
+      <div class="mgr-section wk-pay-card ${state.weeklyPayExpanded ? 'expanded' : ''}" id="wk-pay-card">
         <div class="mgr-section-head">
           <div>
             <h2 class="mgr-section-title">💳 Оплаты по неделям
-              <span class="mgr-help" title="Суммы оплаченных счетов из вида «♥️Оплачено CSM» по неделям (среда → среда). Последний столбец — текущая неделя.">?</span>
+              <span class="mgr-help" title="Суммы оплаченных счетов из вида «♥️Оплачено CSM» по неделям (среда → среда). Клик по столбцу — по дням.">?</span>
             </h2>
             <p class="mgr-section-hint">Вид «♥️Оплачено CSM» · ${bars.length} недель</p>
           </div>
@@ -1041,13 +1204,21 @@
             <span class="wkly-delta-val">${deltaSign}${fmtRub(delta)}</span>
           </div>
         </div>
+        ${chartHint}
         <div class="wkly-legend">
-          <span class="wkly-legend-item wkly-legend-pay">Оплачено за неделю</span>
-          <span style="font-size:0.78rem;color:var(--muted)">Текущая неделя: <strong style="color:var(--ok)">${fmtRub(wp.currentWeekTotal)}</strong></span>
+          <span class="wkly-legend-item wkly-legend-pay">${drilledBar ? 'По дням (выбранная неделя)' : 'Оплачено за неделю'}</span>
+          <span class="wk-current-week" style="font-size:0.78rem;color:var(--muted)">
+            Текущая неделя: <strong style="color:var(--ok)">${fmtRub(wp.currentWeekTotal)}</strong>
+            <span class="wk-current-pop">
+              <span class="wk-current-pop-title">Крупные оплаты недели</span>
+              ${(d.payments?.top5 || []).slice(0, 5).map(p => `<span class="wk-current-pop-row">${esc(p.client)} — ${fmtRub(p.amount)}</span>`).join('') || '<span class="wk-current-pop-row">Нет оплат</span>'}
+            </span>
+          </span>
         </div>
         <div class="wkly-chart">
-          ${cols.join('')}
+          ${chartCols}
         </div>
+        ${details}
       </div>`;
   }
 
@@ -1667,6 +1838,44 @@
 
     // Обновить вручную
     document.getElementById('btn-refresh')?.addEventListener('click', doRefresh);
+    document.getElementById('wk-pay-card')?.addEventListener('click', (e) => {
+      const weekEl = e.target.closest('[data-pay-week]');
+      if (weekEl) {
+        const we = weekEl.getAttribute('data-pay-week');
+        if (we) {
+          if (state.payWeekDrill === we) {
+            state.payWeekDrill = null;
+          } else {
+            state.payWeekDrill = we;
+            state.weeklyPayExpanded = true;
+          }
+          render();
+        }
+        return;
+      }
+      if (e.target.closest('[data-pay-back]')) {
+        state.payWeekDrill = null;
+        render();
+        return;
+      }
+      const sortBtn = e.target.closest('[data-pay-sort]');
+      if (sortBtn) {
+        const col = sortBtn.getAttribute('data-pay-sort');
+        if (col) {
+          if (state.payTableSort.col === col) {
+            state.payTableSort.dir = state.payTableSort.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            state.payTableSort.col = col;
+            state.payTableSort.dir = col === 'amount' ? 'desc' : col === 'date' ? 'desc' : 'asc';
+          }
+          render();
+        }
+        return;
+      }
+      if (e.target.closest('a,input,select,textarea')) return;
+      state.weeklyPayExpanded = !state.weeklyPayExpanded;
+      render();
+    });
 
     // Фильтр-чипы групп
     document.querySelectorAll('[data-grp]').forEach(chip => {

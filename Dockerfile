@@ -3,11 +3,15 @@ FROM php:8.2-apache
 WORKDIR /var/www/html
 
 # Минимально нужные расширения для текущего проекта
-RUN apt-get update && apt-get install -y libonig-dev && rm -rf /var/lib/apt/lists/*
-RUN docker-php-ext-install mbstring
-
-# Включаем mod_headers на случай будущих заголовков безопасности
-RUN a2enmod headers
+# libonig-dev — для mbstring, libcurl4-openssl-dev — для ext-curl
+RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev libcurl4-openssl-dev \
+    && docker-php-ext-install mbstring curl \
+    && docker-php-ext-enable curl \
+    && printf "%s\n" "allow_url_fopen=On" > /usr/local/etc/php/conf.d/zz-railway.ini \
+    && php -r "exit(function_exists('curl_init') ? 0 : 1);" \
+    && php -r "exit((int)!ini_get('allow_url_fopen'));" \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY dashboard/ /var/www/html/
 
@@ -15,8 +19,6 @@ COPY dashboard/ /var/www/html/
 RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
     && chown -R www-data:www-data /var/www/html/cache /var/www/html/snapshots
 
-# Railway injects PORT env variable — configure Apache to listen on it
-RUN echo 'Listen ${PORT}' > /etc/apache2/ports.conf && \
-    sed -i 's/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/' /etc/apache2/sites-enabled/000-default.conf
+EXPOSE 80
 
-EXPOSE ${PORT}
+CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-80} -t /var/www/html"]

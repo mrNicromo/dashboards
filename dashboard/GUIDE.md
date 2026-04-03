@@ -274,12 +274,15 @@ $env:AIRTABLE_BASE_ID="appEAS1rPKpevoIel"
 php -S localhost:8080
 ```
 
+Выкладка на хостинг (корень `dashboard/`, секреты, cron, Nginx): **[DEPLOY.md](DEPLOY.md)**. Пример переменных окружения — **`.env.example`** в корне репозитория.
+
 ---
 
 ## 5. Структура дашбордов
 
 ```
 index.php         → Главная страница (сводка всех KPI)
+ai_insights.php   → AI-аналитика (графики по кэшу + выводы AI: Gemini, при лимите — Groq; история в `cache/ai-insights-history.json`, ключи `DASHBOARD_GEMINI_API_KEY` и опционально `DASHBOARD_GROQ_API_KEY`)
 churn.php         → Угроза Churn (кто сейчас в риске)
 churn_fact.php    → Потери выручки (факт ухода и даунселла)
 manager.php       → Дебиторская задолженность
@@ -610,7 +613,12 @@ DownSell берётся из Google Sheets CSV. Проверьте:
 
 #### Ошибка «CSRF token mismatch» (403)
 
-Обычно возникает при открытии нескольких вкладок с дашбордом. Обновите страницу (F5).
+- Из интерфейса Churn: запросы идут с заголовком `X-CSRF-Token` из `<meta name="csrf-token">`. При нескольких вкладках обновите страницу (F5).
+- Прямой вызов в браузере или с Railway/cron **без сессии**: задайте секрет и передайте его одним из способов:
+  - Переменная окружения **`DASHBOARD_API_SECRET`** (или поле **`api_secret`** в `config.php`), длинная случайная строка.
+  - Запрос: заголовок `Authorization: Bearer <секрет>` или `X-Api-Key: <секрет>`, либо параметр **`api_secret`** (GET/POST). Пример: `churn_api.php?api_secret=...` (секрет в URL может попасть в логи — для продакшена лучше Bearer).
+
+Пока секрет **не задан**, для API по-прежнему нужен только CSRF из залогиненной страницы.
 
 #### PHP Warning: Cannot write cache file
 

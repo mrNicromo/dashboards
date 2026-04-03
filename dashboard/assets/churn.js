@@ -239,6 +239,7 @@
             <span class="ch-nav-tab ch-nav-tab-active">⚠ Угроза Churn</span>
             <a class="ch-nav-tab" href="churn_fact.php">📉 Потери</a>
             <a class="ch-nav-tab" href="manager.php">💰 ДЗ</a>
+            <a class="ch-nav-tab" href="ai_insights.php">🤖 AI</a>
           </div>
         </div>
         <div class="ch-topbar-right">

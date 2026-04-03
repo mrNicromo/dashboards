@@ -89,13 +89,12 @@ final class Airtable
         $body = @file_get_contents($url, false, $ctx);
         if ($body === false) throw new RuntimeException('file_get_contents failed');
         $code = 200;
+        // PHP 8.4+: http_get_last_response_headers(); не использовать $http_response_header (deprecated)
         if (function_exists('http_get_last_response_headers')) {
             $rh = http_get_last_response_headers();
             if (is_array($rh) && $rh !== [] && preg_match('/HTTP\/\S+\s+(\d+)/', (string) $rh[0], $m)) {
-                $code = (int)$m[1];
+                $code = (int) $m[1];
             }
-        } elseif (!empty($http_response_header[0]) && preg_match('/HTTP\/\S+\s+(\d+)/', $http_response_header[0], $m)) {
-            $code = (int)$m[1];
         }
         if ($code >= 400) {
             $d = json_decode($body, true);
@@ -167,6 +166,48 @@ final class Airtable
         return $records;
     }
 
+    /**
+     * Постраничная загрузка с полями по field id. В ответе ключи в `fields` — тоже id (returnFieldsByFieldId).
+     * Повторяющиеся `fields[]` в query http_build_query не умеет — собираем URL вручную.
+     *
+     * @param list<string> $fieldIds
+     * @param array<string, string|int|bool> $baseQuery
+     * @return list<array<string, mixed>>
+     */
+    public static function fetchAllPagesByFieldIds(string $baseId, string $tableId, array $baseQuery, array $fieldIds, string $token): array
+    {
+        $records = [];
+        $offset  = null;
+        do {
+            $q = $baseQuery;
+            if ($offset !== null) {
+                $q['offset'] = $offset;
+            }
+            $q['returnFieldsByFieldId'] = 'true';
+            $path = self::API . rawurlencode($baseId) . '/' . rawurlencode($tableId);
+            $qs   = http_build_query($q, '', '&', PHP_QUERY_RFC3986);
+            foreach ($fieldIds as $fid) {
+                $qs .= '&fields[]=' . rawurlencode($fid);
+            }
+            $url  = $path . '?' . $qs;
+            $body = self::httpGet($url, $token);
+            $decoded = json_decode($body, true);
+            if (!is_array($decoded)) {
+                throw new RuntimeException('Invalid JSON from Airtable');
+            }
+            if (isset($decoded['error'])) {
+                $msg = $decoded['error']['message'] ?? json_encode($decoded['error']);
+                throw new RuntimeException('Airtable error: ' . $msg);
+            }
+            foreach ($decoded['records'] ?? [] as $r) {
+                $records[] = $r;
+            }
+            $offset = $decoded['offset'] ?? null;
+        } while ($offset !== null);
+
+        return $records;
+    }
+
     /** @return list<array{id: string, name: string}> */
     public static function listMetaTables(string $baseId, string $token): array
     {
@@ -181,5 +222,40 @@ final class Airtable
             }
         }
         return $out;
+    }
+
+    /** @var array<string, array<string, string>> */
+    private static array $fieldIdToNameCache = [];
+
+    /**
+     * Имя поля по field id (из URL вида …/fldXXXX/…). Нужен scope schema.bases:read.
+     *
+     * @return non-empty-string|null
+     */
+    public static function getFieldNameById(string $baseId, string $tableId, string $fieldId, string $token): ?string
+    {
+        $ck = $baseId . '|' . $tableId;
+        if (!isset(self::$fieldIdToNameCache[$ck])) {
+            $url     = 'https://api.airtable.com/v0/meta/bases/' . rawurlencode($baseId) . '/tables';
+            $body    = self::httpGet($url, $token);
+            $decoded = json_decode($body, true);
+            $map     = [];
+            if (is_array($decoded)) {
+                foreach ($decoded['tables'] ?? [] as $t) {
+                    if (!is_array($t) || ($t['id'] ?? '') !== $tableId) {
+                        continue;
+                    }
+                    foreach ($t['fields'] ?? [] as $fld) {
+                        if (is_array($fld) && isset($fld['id'], $fld['name'])) {
+                            $map[(string) $fld['id']] = (string) $fld['name'];
+                        }
+                    }
+                    break;
+                }
+            }
+            self::$fieldIdToNameCache[$ck] = $map;
+        }
+        $name = self::$fieldIdToNameCache[$ck][$fieldId] ?? null;
+        return ($name !== null && $name !== '') ? $name : null;
     }
 }

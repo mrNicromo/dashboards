@@ -8,3 +8,19 @@ dashboard/cache/*
 dashboard/snapshots/*
 !dashboard/snapshots/.gitkeep
 dashboard/.local-server.log
+
+# Локальный Node-сервер; в образе только PHP (см. Dockerfile)
+dashboard/serve.mjs
+
+# Разовые импорты / не прод
+dashboard/tools/*.csv
+
+# Тяжёлая документация — не нужна в контейнере
+dashboard/GUIDE.md
+dashboard/local-daily-use.md
+dashboard/airtable-fields.md
+
+# Отладка в продакшен-образе не обязательна
+dashboard/churn_fact_debug.php
+dashboard/launchd-dashboard.plist.example
+dashboard/open-dashboard.command

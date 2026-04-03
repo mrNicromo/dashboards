@@ -15,19 +15,21 @@
   --cf-muted:   #8E9AAB;
   --cf-text:    #E2E8F0;
   --cf-elevated:#1E2A3B;
+  --text:       var(--cf-text);
 }
 [data-theme="light"] {
   --cf-accent:  #6B51EF;
   --cf-danger:  #E3342F;
   --cf-warn:    #E07B09;
   --cf-ok:      #27AE60;
-  --cf-bg:      #f4f4f8;
-  --cf-surface: #ffffff;
-  --cf-card:    #f9f9fc;
-  --cf-border:  rgba(0,0,0,0.09);
-  --cf-muted:   #5c6b7e;
-  --cf-text:    #1a2332;
-  --cf-elevated:#f0f3f8;
+  --cf-bg:      #e2e5ec;
+  --cf-surface: #e8ebf2;
+  --cf-card:    #eef1f7;
+  --cf-border:  rgba(51, 65, 85, 0.14);
+  --cf-muted:   #64748b;
+  --cf-text:    #1e293b;
+  --cf-elevated:#e0e5ef;
+  --text:       var(--cf-text);
 }
 
 body { margin:0; background:var(--cf-bg); font-family:var(--font,system-ui,sans-serif); color:var(--text,#e8e8f0); }
@@ -456,8 +458,8 @@ body { margin:0; background:var(--cf-bg); font-family:var(--font,system-ui,sans-
 
 /* Светлая тема для JS-тултипа */
 [data-theme="light"] #cf-tooltip {
-  background: #ffffff !important;
-  color: #1a2332 !important;
-  border-color: rgba(0,0,0,0.18) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+  background: var(--cf-card) !important;
+  color: var(--cf-text) !important;
+  border-color: var(--cf-border) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1) !important;
 }

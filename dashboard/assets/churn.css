@@ -17,18 +17,19 @@
   --churn-muted:   #6e6e80;
 }
 [data-theme="light"] {
-  --churn-bg:      #f2f2f7;
-  --churn-surface: #ffffff;
-  --churn-card:    #ffffff;
-  --churn-card2:   #f7f7fb;
-  --churn-border:  rgba(0,0,0,.08);
+  --churn-bg:      #e2e5ec;
+  --churn-surface: #e8ebf2;
+  --churn-card:    #eef1f7;
+  --churn-card2:   #e4e8f0;
+  --churn-elevated:#e0e5ef;
+  --churn-border:  rgba(51, 65, 85, 0.14);
   --churn-accent:  #6B51EF;
   --churn-danger:  #E3342F;
   --churn-warn:    #E07B09;
   --churn-low:     #B8A200;
   --churn-ok:      #27AE60;
-  --churn-text:    #1c1c28;
-  --churn-muted:   #8e8e9a;
+  --churn-text:    #1e293b;
+  --churn-muted:   #64748b;
 }
 
 * { box-sizing: border-box; }
@@ -494,9 +495,10 @@ body {
 .tt-wrap:hover .tt-box,
 .tt-wrap.tt-open .tt-box { display: block; }
 [data-theme="light"] .tt-box {
-  background: #fff; color: #333;
-  border-color: rgba(107,81,239,.25);
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  background: var(--churn-card);
+  color: var(--churn-text);
+  border-color: rgba(107,81,239,.22);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
 }
 
 /* ── Progress bar (загрузка данных) ──────────────────────── */
@@ -633,11 +635,11 @@ body {
 /* Пивот-таблицы короткие — sticky-шапка не нужна, иначе наезжает на строки при скролле страницы */
 .ch-pivot-card .ch-table thead th { position: static; }
 [data-theme="light"] .ch-pivot-section {
-  background: #fff;
+  background: var(--churn-card);
   border-color: rgba(107,81,239,.12);
 }
 [data-theme="light"] .ch-pivot-card {
-  background: #f7f7fc;
+  background: var(--churn-card2);
   border-color: rgba(107,81,239,.12);
 }
 [data-theme="light"] .ch-pivot-card h4 {

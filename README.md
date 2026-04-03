@@ -4,6 +4,8 @@
 
 **Полная документация:** [dashboard/GUIDE.md](dashboard/GUIDE.md)
 
+**Продакшен и деплой:** [dashboard/DEPLOY.md](dashboard/DEPLOY.md)
+
 ### Самый короткий путь (macOS)
 
 1. Положите папку проекта куда удобно (например `~/Desktop/airtable`).
@@ -192,6 +194,8 @@ export AIRTABLE_PAT='pat_ВАШ_ТОКЕН'
 4. Нажми **Deploy**.
 5. Вкладка **Settings** -> **Domains** -> **Generate Domain**.
 6. Открой `https://<your-domain>/index.php`.
+
+**Без лишних платежей:** не подключайте к проекту PostgreSQL — дашборд его не использует (данные в Airtable и в `dashboard/cache/`). Лишняя БД на Railway даёт отдельную подписку и ошибки вроде `max_client_conn`.
 
 Если используете пароль на уровне `index.php`, домен можно просто отдавать коллегам.
 

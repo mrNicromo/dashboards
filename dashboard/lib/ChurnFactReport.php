@@ -71,6 +71,26 @@ final class ChurnFactReport
     private const SHEETS_DS_CSV  = 'https://docs.google.com/spreadsheets/d/1Tkax6awhWmNXfXpzORPIqHy5qgAhLzfifSHc-YLQhhY/gviz/tq?tqx=out:csv&sheet=UpSale%2FDownSell';
     private const SHEETS_CHN_CSV = 'https://docs.google.com/spreadsheets/d/1Tkax6awhWmNXfXpzORPIqHy5qgAhLzfifSHc-YLQhhY/gviz/tq?tqx=out:csv&sheet=Churn';
 
+    /** URL Google Sheets CSV для Churn (из конфига или константа) */
+    private static function sheetsChurnCsvUrl(): string
+    {
+        if (function_exists('dashboard_config')) {
+            $c = dashboard_config();
+            if (!empty($c['sheets_churn_csv'])) return $c['sheets_churn_csv'];
+        }
+        return self::SHEETS_CHN_CSV;
+    }
+
+    /** URL Google Sheets CSV для DownSell (из конфига или константа) */
+    private static function sheetsDsCsvUrl(): string
+    {
+        if (function_exists('dashboard_config')) {
+            $c = dashboard_config();
+            if (!empty($c['sheets_ds_csv'])) return $c['sheets_ds_csv'];
+        }
+        return self::SHEETS_DS_CSV;
+    }
+
     /** Нормализация названия продукта: AQ → AnyQuery, AC → AnyCollections и т.д. */
     private static function normProduct(string $raw): string
     {
@@ -94,7 +114,17 @@ final class ChurnFactReport
     {
         $r = mb_strtolower(trim($raw));
         if ($r === 'ent' || $r === 'enterprise') return 'ENT';
-        return 'SMB'; // Small, Medium, SMB, SME — всё в одну группу
+        if ($r === 'sme+' || $r === 'sme_plus')  return 'SME+';
+        if ($r === 'sme-' || $r === 'sme_minus') return 'SME-';
+        if ($r === 'sme')                         return 'SME';
+        if ($r === 'ss'  || $r === 'self-service' || $r === 'self service') return 'SS';
+        return 'SMB';
+    }
+
+    /** Возвращает ENT или SMB (для агрегации по двум сегментам в отчётах) */
+    private static function segmentGroup(string $norm): string
+    {
+        return $norm === 'ENT' ? 'ENT' : 'SMB';
     }
 
     // Russian month names → number
@@ -191,7 +221,7 @@ final class ChurnFactReport
     {
         $rows = [];
         try {
-            $raw = self::fetchCsv(self::SHEETS_CHN_CSV);
+            $raw = self::fetchCsv(self::sheetsChurnCsvUrl());
             if (!$raw) {
                 self::$lastChnHeaders = ['error' => 'empty CSV response'];
                 // Fallback: planned churn only
@@ -229,10 +259,14 @@ final class ChurnFactReport
                 $account = $col($row, 'клиент', 'account', 'client');
                 if ($account === '') continue;
 
-                $mrrRaw = self::amt($col($row, 'mrr', 'сумма mrr', 'mrr сумма', 'mrr потеря', 'потеря mrr', 'сумма'));
+                $mrrRaw = self::amt($col($row,
+                    'изменение', 'mrr старый', 'mrr потеря', 'потеря mrr',
+                    'mrr', 'сумма mrr', 'mrr сумма', 'сумма'
+                ));
                 $mrr    = abs($mrrRaw);
 
-                $monthVal = $col($row, 'месяц', 'month');
+                // Месяц чёрна приоритетнее месяца внесения
+                $monthVal = $col($row, 'месяц черн', 'месяц churn', 'месяц', 'month');
                 $yearVal  = $col($row, 'год', 'year');
                 $month    = self::buildMonthStr($monthVal, $yearVal);
 
@@ -309,7 +343,7 @@ final class ChurnFactReport
     private static function enrichWithSheetsCsm(array $churnRows): array
     {
         try {
-            $raw = self::fetchCsv(self::SHEETS_CHN_CSV);
+            $raw = self::fetchCsv(self::sheetsChurnCsvUrl());
             if (!$raw) return $churnRows;
 
             $lines = array_values(array_filter(array_map('trim', explode("\n", $raw))));
@@ -370,13 +404,17 @@ final class ChurnFactReport
     public static array $lastDsHeaders = [];
     /** Счётчики фильтрации — для отладки */
     public static array $lastDsDebug   = [];
+    /** Примеры значений полей даты / месяца (отладка сопоставления с Airtable) */
+    public static array $lastDateSamples = [];
+    /** Имена полей из вьюх Recent Churn (отладка Meta) */
+    public static array $lastChurnFields = [];
 
     private static function fetchDownsellRows(): array
     {
         $rows = [];
         $dbg  = ['totalLines'=>0,'noTypeCol'=>0,'typeValues'=>[],'failedTypeFilter'=>0,'failedKindFilter'=>0,'failedChangeFilter'=>0,'passed'=>0];
         try {
-            $raw = self::fetchCsv(self::SHEETS_DS_CSV);
+            $raw = self::fetchCsv(self::sheetsDsCsvUrl());
             if (!$raw) {
                 self::$lastDsDebug = ['error'=>'empty CSV response'];
                 return [];
@@ -548,7 +586,8 @@ final class ChurnFactReport
 
             // Segment group
             $seg      = (string)($r['segment'] ?? '');
-            $segGroup = self::normSegment($seg);
+            $segNorm  = self::normSegment($seg);
+            $segGroup = self::segmentGroup($segNorm);
 
             // Segment by month chart
             if (!isset($byMonthSeg[$month])) $byMonthSeg[$month] = ['ent'=>0.0,'smb'=>0.0];

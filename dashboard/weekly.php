@@ -35,14 +35,9 @@ if ($hasPat) {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
   <title>Еженедельный отчёт по ДЗ</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <link rel="stylesheet" href="assets/weekly.css?v=2">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/weekly.css?v=3">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
 <?php if (!$hasPat): ?>
@@ -68,7 +63,8 @@ if ($hasPat) {
     </div>
   </div>
   <script src="assets/utils.js?v=1" defer></script>
-  <script src="assets/weekly.js?v=2" defer></script>
+  <script src="assets/weekly.js?v=4" defer></script>
+  <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>
 </body>
 </html>

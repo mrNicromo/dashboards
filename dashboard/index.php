@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/AiInsightsContext.php';
 $c = dashboard_config();
 
 // ── Читаем кэши ────────────────────────────────────────────────────────────
@@ -10,7 +11,7 @@ function readCache(string $path): array {
     return is_array($d) ? $d : [];
 }
 
-$dz    = readCache(__DIR__ . '/cache/dz-data-default.json');
+$dz    = AiInsightsContext::unwrapDzCache(readCache(__DIR__ . '/cache/dz-data-default.json'));
 $churn = readCache(__DIR__ . '/cache/churn-report.json');
 $fact  = readCache(__DIR__ . '/cache/churn-fact-report.json');
 
@@ -50,15 +51,11 @@ function fmtR(float $v): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>AnyQuery — Дашборды</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=14">
-  <script>
-    (function(){
-      var t = localStorage.getItem('aq_theme') || 'dark';
-      document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-  </script>
+  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <script src="assets/aq-theme-boot.js?v=1"></script>
   <style>
     /* ── Hub ────────────────────────────── */
     :root,[data-theme="dark"]{
@@ -67,8 +64,8 @@ function fmtR(float $v): string {
       --hub-accent:#7B61FF;--hub-danger:#FF453A;--hub-warn:#FF9F0A;--hub-ok:#34C759;
     }
     [data-theme="light"]{
-      --hub-bg:#f4f4f8;--hub-surface:#fff;--hub-card:#f9f9fc;
-      --hub-border:rgba(0,0,0,.09);--hub-text:#1a1a2e;--hub-muted:#666;
+      --hub-bg:#e2e5ec;--hub-surface:#e8ebf2;--hub-card:#eef1f7;
+      --hub-border:rgba(51,65,85,.14);--hub-text:#1e293b;--hub-muted:#64748b;
       --hub-accent:#6B51EF;--hub-danger:#E3342F;--hub-warn:#E07B09;--hub-ok:#27AE60;
     }
     *{box-sizing:border-box;margin:0;padding:0}
@@ -202,8 +199,10 @@ function fmtR(float $v): string {
     <a class="hub-nav-tab" href="churn.php">⚠ Угроза Churn</a>
     <a class="hub-nav-tab" href="churn_fact.php">📉 Потери</a>
     <a class="hub-nav-tab" href="manager.php">💰 ДЗ</a>
+    <a class="hub-nav-tab" href="ai_insights.php">🤖 AI</a>
+    <a class="hub-nav-tab" href="settings.php">⚙️ Настройки</a>
   </nav>
-  <button class="btn-icon" id="btn-theme" title="Сменить тему">🌙</button>
+  <button class="btn-icon" id="btn-theme" title="Светлая тема" aria-label="Переключить тему">☀️</button>
 </div>
 
 <div class="hub-hero">
@@ -317,6 +316,21 @@ function fmtR(float $v): string {
           <a class="hub-btn" href="churn_fact.php">Открыть →</a>
           <button class="hub-btn secondary" id="btn-refresh-fact" title="Сбросить кэш и обновить данные">↻</button>
         </div>
+      </div>
+    </div>
+
+    <!-- AI-аналитика -->
+    <div class="hub-card">
+      <div class="hub-card-head">
+        <div class="hub-card-icon">🤖</div>
+        <div class="hub-card-title">AI-аналитика</div>
+        <div class="hub-card-desc">Выводы и решения по данным дашбордов (ДЗ, churn, потери) — на базе кэша Airtable и Google Gemini</div>
+      </div>
+      <div class="hub-card-body">
+        <div style="color:var(--hub-muted);font-size:.82rem;line-height:1.45">Графики тех же метрик + текстовый разбор проблемных зон и приоритетных действий.</div>
+      </div>
+      <div class="hub-card-foot">
+        <a class="hub-btn" href="ai_insights.php">Открыть AI →</a>
       </div>
     </div>
 
@@ -529,21 +543,28 @@ function fmtR(float $v): string {
     });
   })();
 
-  // Theme toggle
+  // Theme toggle (иконка = действие: в тёмной теме — солнце → перейти в светлую)
   document.getElementById('btn-theme')?.addEventListener('click', function() {
     var root = document.getElementById('html-root');
     var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
     localStorage.setItem('aq_theme', next);
-    this.textContent = next === 'dark' ? '🌙' : '☀️';
+    try { localStorage.removeItem('dz-theme'); } catch (e) {}
+    var dark = next === 'dark';
+    this.textContent = dark ? '☀️' : '🌙';
+    this.title = dark ? 'Светлая тема' : 'Тёмная тема';
+    this.setAttribute('aria-label', dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
   });
-  // Set correct icon on load
   (function(){
     var t = document.getElementById('html-root').getAttribute('data-theme');
     var btn = document.getElementById('btn-theme');
-    if (btn) btn.textContent = t === 'dark' ? '🌙' : '☀️';
+    if (!btn) return;
+    var dark = t === 'dark';
+    btn.textContent = dark ? '☀️' : '🌙';
+    btn.title = dark ? 'Светлая тема' : 'Тёмная тема';
+    btn.setAttribute('aria-label', dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
   })();
 </script>
-<script src="assets/shared-nav.js?v=1" defer></script>
+<script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

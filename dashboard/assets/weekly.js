@@ -104,6 +104,7 @@
           <a href="churn.php" class="wk-tab-link">Угроза Churn</a>
           <a href="churn_fact.php" class="wk-tab-link">Потери</a>
           <a href="manager.php" class="wk-tab-link">ДЗ</a>
+          <a href="ai_insights.php" class="wk-tab-link">AI</a>
           <span class="wk-tab-link wk-tab-active">Еженедельный</span>
         </div>
         <div class="topbar-nav">
@@ -363,14 +364,16 @@
   // E6b: стрелки тренда ▲▼ + «+X₽ vs прошлая неделя»
   // ═══════════════════════════════════════════════════════════
   function renderBlock4() {
-    const GROUPS = ['16-30', '31-60', '61-90', '91+'];
+    const GROUPS = ['0-15', '16-30', '31-60', '61-90', '91+'];
     const LABELS = {
+      '0-15':  '0–15 дней',
       '16-30': '16–30 дней',
       '31-60': '31–60 дней',
       '61-90': '61–90 дней',
       '91+':   '91+ дней',
     };
     const COLORS = {
+      '0-15':  '#34c759',
       '16-30': '#f5a623',
       '31-60': '#ff9500',
       '61-90': '#ff6b35',
