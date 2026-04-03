@@ -29,7 +29,10 @@ RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
 # Apache слушает PORT из Railway
 RUN echo 'ServerName localhost' >> /etc/apache2/apache2.conf
 COPY docker/apache-railway.conf /etc/apache2/sites-enabled/000-default.conf
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 
-CMD ["sh", "-c", "sed -i \"s/Listen 80/Listen ${PORT:-80}/\" /etc/apache2/ports.conf && sed -i \"s/:80>/:${PORT:-80}>/\" /etc/apache2/sites-enabled/000-default.conf && apache2-foreground"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["apache2-foreground"]
