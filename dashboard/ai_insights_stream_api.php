@@ -94,7 +94,8 @@ if (!$skipRefresh) {
     try {
         AiInsightsContext::refreshCachesFromAirtable($c);
     } catch (Throwable $e) {
-        sse_error(AiInsightsSupport::mapFetchError($e->getMessage()));
+        sse_send('error', ['error' => AiInsightsSupport::mapFetchError($e->getMessage()), 'rawError' => $e->getMessage()]);
+        exit;
     }
     sse_send('status', ['msg' => '2/2 Запрос к модели…']);
 } else {
