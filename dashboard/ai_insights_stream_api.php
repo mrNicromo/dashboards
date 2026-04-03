@@ -104,7 +104,9 @@ if (!$skipRefresh) {
 
 // ── Промпт ────────────────────────────────────────────────────
 $baseId = (string) ($c['airtable_base_id'] ?? '');
-$ctxJson = AiInsightsContext::promptContext($dir, $baseId);
+// Полный контекст для Gemini/Claude (большой лимит), урезанный для Groq (free-tier: ~6k TPM, hard limit на тело запроса)
+$ctxJson     = AiInsightsContext::promptContext($dir, $baseId);          // ~280 KB
+$ctxJsonGroq = AiInsightsContext::promptContext($dir, $baseId, 18000);   // ~18 KB ≈ 4.5k tokens
 
 $system = <<<'PROMPT'
 Ты — финансовый и операционный аналитик B2B SaaS.
@@ -135,7 +137,8 @@ $liveNote = "\n\n(Служебно: данные получены запроса
 $customBlock = $customQuestion !== ''
     ? "\n\n---\n### Дополнительный вопрос (приоритет — ответь на него явно в начале):\n" . $customQuestion
     : '';
-$user = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote . $customBlock;
+$user     = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJson . "\n```\n\n---\n### История сохранённых снимков (учитывай только если здесь есть строки/числа; иначе не строй тренд)\n" . $historyBlock . $liveNote . $customBlock;
+$userGroq = "Ниже — единственный источник фактов для ответа. Игнорируй общие знания о бизнесе, если они не подтверждены этим JSON.\n\nТекущий снимок (JSON):\n```json\n" . $ctxJsonGroq . "\n```\n\n---\n### История сохранённых снимков\n" . AiInsightsHistory::buildTrendPromptSection(8) . $liveNote . $customBlock;
 
 // ── Стриминг от провайдера ────────────────────────────────────
 $tLlm0 = microtime(true);
@@ -364,10 +367,9 @@ if ($geminiKey !== '') {
         $llmModelId = $gen['modelId'] ?? 'gemini-2.0-flash';
     } else {
         $lastErr = (string) ($gen['error'] ?? '');
-        $httpCode = (int) ($gen['httpCode'] ?? 0);
-        // Пробуем Groq при лимите/ошибке авторизации
-        if ($groqKey !== '' && ($httpCode === 429 || $httpCode === 401 || $httpCode === 403 || str_contains(mb_strtolower($lastErr), 'quota'))) {
-            $gen = ai_stream_groq($groqKey, $system, $user, $onChunk);
+        // Groq — фолбэк при любой ошибке Gemini (лимит, авторизация, недоступность)
+        if ($groqKey !== '') {
+            $gen = ai_stream_groq($groqKey, $system, $userGroq, $onChunk);
             if ($gen['ok']) {
                 $provider = 'groq';
                 $llmModelId = $gen['modelId'] ?? 'llama-3.3-70b-versatile';
@@ -379,7 +381,7 @@ if ($geminiKey !== '') {
 }
 
 if ($provider === null && $groqKey !== '' && $geminiKey === '') {
-    $gen = ai_stream_groq($groqKey, $system, $user, $onChunk);
+    $gen = ai_stream_groq($groqKey, $system, $userGroq, $onChunk);
     if ($gen['ok']) {
         $provider = 'groq';
         $llmModelId = $gen['modelId'] ?? 'llama-3.3-70b-versatile';

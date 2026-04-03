@@ -24,4 +24,5 @@ RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
 
 EXPOSE 80
 
-CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-80} -t /var/www/html"]
+# PHP_CLI_SERVER_WORKERS — встроенный механизм параллельных воркеров в php -S (PHP 8.x)
+CMD ["sh", "-c", "PHP_CLI_SERVER_WORKERS=4 php -S 0.0.0.0:${PORT:-80} -t /var/www/html"]
