@@ -777,3 +777,89 @@
     padding: 6px 9px;
   }
 }
+
+/* ── Режимы анализа ──────────────────────────────────────────── */
+.ai-mode-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 6px;
+}
+.ai-mode-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: 2px;
+}
+.ai-mode-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.ai-mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.ai-mode-btn-active {
+  border-color: var(--accent) !important;
+  background: var(--accent-dim) !important;
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+.ai-mode-btn-diff {
+  border-color: rgba(100,80,200,0.4);
+  color: #a78bfa;
+}
+.ai-mode-btn-diff:hover {
+  border-color: #a78bfa;
+  color: #a78bfa;
+  background: rgba(100,80,200,0.1);
+}
+.ai-mode-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Кликабельные KPI-карточки ───────────────────────────────── */
+.ai-kpi-card-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.ai-kpi-card-clickable:hover {
+  border-color: var(--accent) !important;
+  box-shadow: 0 2px 12px rgba(10,132,255,0.18);
+  transform: translateY(-1px);
+}
+.ai-kpi-ask {
+  font-size: 0.7em;
+  opacity: 0.6;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+/* ── Печать / PDF ────────────────────────────────────────────── */
+@media print {
+  .ai-topbar, .ai-hero, .ai-sync-line, .ai-banner, .ai-provider-status-row,
+  .ai-card-history-wrap, .ai-chart-grid, .ai-insight-head, .ai-mode-row,
+  .ai-custom-question-wrap, .ai-restore-row, .ai-output-toolbar,
+  .ai-number-warn, .ai-outline, .ai-compare-card, .ai-cron-card,
+  .ai-kpi-strip, .btn-icon, nav, header { display: none !important; }
+  .ai-wrap { padding: 0; max-width: 100%; }
+  .ai-insight-card { border: none; padding: 0; }
+  .ai-output-wrap { max-height: none !important; overflow: visible !important; }
+  .ai-output-wrap-collapsed { max-height: none !important; }
+  .ai-markdown { font-size: 11pt; line-height: 1.5; color: #000; }
+  .ai-markdown h2 { font-size: 14pt; margin-top: 18pt; page-break-after: avoid; }
+  .ai-markdown h3 { font-size: 12pt; page-break-after: avoid; }
+  body { background: #fff; color: #000; }
+}

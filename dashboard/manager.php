@@ -13,18 +13,13 @@ $bootstrapJson = '';
 $errorMsg      = '';
 $hasPat        = $c['airtable_pat'] !== '';
 
+// Cache-first: используем кэш при загрузке страницы, JS сделает async-обновление
 if ($hasPat) {
-    try {
-        $report        = ManagerReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
-        $bootstrapJson = json_encode($report, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-        if ($bootstrapJson === false) {
-            $errorMsg = 'Ошибка кодирования JSON: ' . json_last_error_msg();
-            $hasPat   = false;
-        }
-    } catch (Throwable $e) {
-        $errorMsg = $e->getMessage();
-        $hasPat   = false;
+    $cached = ManagerReport::getCached();
+    if ($cached !== null) {
+        $bootstrapJson = json_encode($cached, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
     }
+    // Если кэш пустой — страница откроется пустой, JS запросит свежие данные через manager_api.php
 }
 
 // Churn-данные из кэша (не делаем живых запросов — только кэш)

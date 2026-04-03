@@ -120,14 +120,11 @@
     const btn = document.getElementById('refresh-btn');
     if (btn) { btn.disabled = true; btn.textContent = '↻ Загрузка…'; }
     try {
-      const resp = await fetch(location.href, { cache: 'no-store' });
+      const resp = await fetch('manager_api.php', { cache: 'no-store' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const html = await resp.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const newBs = doc.getElementById('weekly-bootstrap');
-      if (!newBs) throw new Error('bootstrap not found');
-      d = JSON.parse(newBs.textContent);
+      const json = await resp.json();
+      if (!json.ok || !json.data) throw new Error(json.error || 'нет данных');
+      d = json.data;
       render();
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = '↻ Обновить'; }
@@ -443,5 +440,10 @@
 
   // ── Запуск ───────────────────────────────────────────────
   render();
+
+  // Если кэш устарел или пустой — обновляем в фоне
+  if (!d || d._stale || !d.totalDebt) {
+    setTimeout(() => doRefresh(), 500);
+  }
 
 })();

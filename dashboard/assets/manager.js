@@ -2185,6 +2185,13 @@
     }
 
     render();
+
+    // Если данных нет или кэш устарел (_stale) — немедленно обновляем
+    const needsImmediate = !state.data || state.data._stale;
+    if (needsImmediate) {
+      setTimeout(() => doRefresh(), 300);
+    }
+
     scheduleAuto();
   }
 

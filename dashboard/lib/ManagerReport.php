@@ -29,6 +29,10 @@ final class ManagerReport
     private const CS_FIELD_LEGAL = 'flddZ8St9v8tBZ2rQ';
     private const CS_FIELD_SITE  = 'fldw7UmncgsP3OtOy';
 
+    private const CACHE      = __DIR__ . '/../cache/manager-report.json';
+    private const TTL_FRESH  = 900;   // 15 min — подаём без вопросов
+    private const TTL_STALE  = 3600;  // 1 hour — подаём с флагом _stale
+
     /** Маппинг значений поля «Группа просрочки» → ключ для фронтенда */
     private const AGING_MAP = [
         '0 - 15 дней'  => '0-15',
@@ -42,6 +46,31 @@ final class ManagerReport
     private const AGING_GROUPS = ['0-15', '16-30', '31-60', '61-90', '91+'];
 
     // ------------------------------------------------------------------ //
+
+    /**
+     * Читает кэш без обращения к Airtable.
+     */
+    public static function getCached(): ?array
+    {
+        if (!is_readable(self::CACHE)) return null;
+        $cached = json_decode(file_get_contents(self::CACHE) ?: '', true);
+        if (!is_array($cached)) return null;
+        $age = time() - ($cached['_ts'] ?? 0);
+        if ($age >= self::TTL_STALE) return null;
+        if ($age >= self::TTL_FRESH) $cached['_stale'] = true;
+        return $cached;
+    }
+
+    /**
+     * Сохраняет результат fetchReport() в кэш.
+     */
+    public static function saveCache(array $data): void
+    {
+        $data['_ts'] = time();
+        $dir = dirname(self::CACHE);
+        if (!is_dir($dir)) mkdir($dir, 0775, true);
+        file_put_contents(self::CACHE, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+    }
 
     /**
      * Парсит сумму из любого формата Airtable.
