@@ -759,6 +759,125 @@
     }
   }
 
+  // ── Error status display ──────────────────────────────────────────────────
+  function clearErrorStatus() {
+    const wrap = document.getElementById('ai-error-status-wrap');
+    if (wrap) { wrap.innerHTML = ''; wrap.hidden = true; }
+  }
+
+  function renderErrorMeta(errMeta) {
+    if (!errMeta || !errMeta.type) return;
+    const wrap = document.getElementById('ai-error-status-wrap');
+    if (!wrap) return;
+    const iconMap = {
+      rate_limit: '⏳', no_auth: '🔑', no_access: '🚫',
+      filtered_table: '🔽', view_not_found: '👁', table_not_found: '❌',
+      llm_quota: '📊', llm_bad_key: '🔑', llm_unavailable: '🔌', unknown: '⚠️',
+    };
+    const isWarn = ['filtered_table', 'view_not_found'].includes(errMeta.type);
+    const icon = iconMap[errMeta.type] || '⚠️';
+    const linkHtml = errMeta.link
+      ? `<a class="ai-error-card-link" href="${esc(errMeta.link)}" target="_blank" rel="noopener">Открыть таблицу в Airtable →</a>`
+      : '';
+    wrap.innerHTML = `<div class="ai-error-card ${isWarn ? 'ai-error-card-warn' : ''}">
+      <div class="ai-error-card-icon">${icon}</div>
+      <div class="ai-error-card-body">
+        <div class="ai-error-card-title">${esc(errMeta.message)}</div>
+        <div class="ai-error-card-detail">${esc(errMeta.detail)}</div>
+        <div class="ai-error-card-action">💡 ${esc(errMeta.action)}</div>
+        ${linkHtml}
+      </div>
+    </div>`;
+    wrap.hidden = false;
+  }
+
+  // ── Analyze all dashboards (force no-cache) ───────────────────────────────
+  async function analyzeAll() {
+    const btn = document.getElementById('btn-analyze-all');
+    const st = document.getElementById('ai-status');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (!btn || !st) return;
+    setGeneratingState(true);
+    clearErrorStatus();
+    st.textContent = '1/2 Сброс кэша и синхронизация всех дашбордов из Airtable…';
+    st.className = 'ai-card-hint';
+    showOutputToolbar(false);
+    applyNumberWarnings([]);
+    try {
+      const r1 = await fetch('ai_insights_refresh_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ force: true }),
+      });
+      let j1 = {};
+      try { j1 = await r1.json(); } catch (_) {
+        st.textContent = 'Ответ синхронизации не JSON (HTTP ' + r1.status + ').';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (!j1.ok) {
+        if (j1.errorMeta) renderErrorMeta(j1.errorMeta);
+        st.textContent = j1.error || 'Ошибка синхронизации';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (j1.charts) {
+        mergeBootstrapCharts(j1.charts, j1.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        buildCharts(next);
+        applyChartHints(next);
+      }
+
+      st.textContent = '2/2 Запрос к модели (краткий обзор всех дашбордов)…';
+      const r2 = await fetch('ai_insights_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({
+          skipRefresh: true,
+          customQuestion: 'Дай краткий обзор всех дашбордов: ДЗ, Churn-риск, фактические потери за год. Выдели 3 ключевых риска и 2 приоритетных действия.',
+        }),
+      });
+      let j = {};
+      try { j = await r2.json(); } catch (parseErr) {
+        st.textContent = 'Ответ сервера не JSON (HTTP ' + r2.status + ').';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      if (!j.ok) {
+        if (j.errorMeta) renderErrorMeta(j.errorMeta);
+        st.textContent = j.error || 'Ошибка запроса к модели';
+        st.classList.add('ai-status-err');
+        return;
+      }
+      clearErrorStatus();
+      const prov = j.provider ? j.provider : '';
+      st.textContent = 'Готово (все дашборды). ' + prov;
+      st.classList.add('ai-status-ok');
+      st.classList.remove('ai-status-err');
+      if (j.analysis) {
+        renderMarkdown(j.analysis);
+        lastMarkdownRaw = j.analysis;
+        showOutputToolbar(true);
+      }
+      if (j.historyCount != null) updateHistoryUi(j.historyCount, true);
+      if (j.charts) {
+        mergeBootstrapCharts(j.charts, j.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        buildCharts(next); applyChartHints(next);
+      }
+      if (j.numberWarnings) applyNumberWarnings(j.numberWarnings);
+    } catch (e) {
+      st.textContent = 'Сетевая ошибка: ' + String(e);
+      st.classList.add('ai-status-err');
+    } finally {
+      setGeneratingState(false);
+    }
+  }
+
   async function generate() {
     const btn = document.getElementById('btn-generate');
     const snap = document.getElementById('btn-snapshot');
@@ -766,6 +885,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     setGeneratingState(true);
+    clearErrorStatus();
     st.textContent = '1/2 Синхронизация с Airtable (API)…';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
@@ -788,6 +908,7 @@
         return;
       }
       if (!j1.ok) {
+        if (j1.errorMeta) renderErrorMeta(j1.errorMeta);
         st.textContent =
           j1.error ||
           (r1.status === 423
@@ -798,6 +919,7 @@
         st.classList.add('ai-status-err');
         return;
       }
+      clearErrorStatus();
       if (j1.charts) {
         mergeBootstrapCharts(j1.charts, j1.chartHints);
         const raw = document.getElementById('ai-bootstrap');
@@ -829,6 +951,7 @@
         return;
       }
       if (!j.ok) {
+        if (j.errorMeta) renderErrorMeta(j.errorMeta);
         st.textContent =
           j.error ||
           (r2.status === 423
@@ -964,6 +1087,7 @@
     document.getElementById('btn-generate')?.addEventListener('click', generate);
     document.getElementById('btn-generate-stream')?.addEventListener('click', generateStream);
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
+    document.getElementById('btn-analyze-all')?.addEventListener('click', analyzeAll);
 
     // Custom question toggle
     document.getElementById('btn-custom-question-toggle')?.addEventListener('click', () => {
