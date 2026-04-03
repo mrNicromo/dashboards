@@ -217,7 +217,7 @@ function ai_stream_groq(string $apiKey, string $system, string $user, callable $
     $payload = [
         'model' => $model,
         'temperature' => 0.35,
-        'max_tokens' => 8192,
+        'max_tokens' => 2048,  // free-tier: 12k TPM; держим output мал чтобы влезть в лимит
         'stream' => true,
         'messages' => [
             ['role' => 'system', 'content' => $system],
