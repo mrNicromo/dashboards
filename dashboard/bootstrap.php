@@ -190,7 +190,7 @@ function dashboard_config_builtin(): array
         'auth_password_hash' => '',
         'api_secret' => 'dummy_api_secret_64_chars_replace_later_0123456789abcdef0123456789ab',
         'gemini_api_key' => 'AIzaSyDemoGeminiKey_ReplacedLater_0123456789abcd',
-        'groq_api_key' => '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',
+        'groq_api_key' => '',
         'anthropic_api_key' => '',
         'sheets_churn_csv' => '',
         'sheets_ds_csv' => '',
