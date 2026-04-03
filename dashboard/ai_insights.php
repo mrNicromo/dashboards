@@ -66,6 +66,7 @@ $bootstrapJson = json_encode(
         'chartHints' => $chartHints,
         'providers' => array_values($configuredProviders),
         'autoSnapshotNeeded' => $autoSnapshotNeeded,
+        'autoSnapshotHours' => $autoSnapshotHours,
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE

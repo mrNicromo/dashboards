@@ -36,6 +36,7 @@ function esc(string $s): string {
   <meta name="csrf-token" content="<?= esc($csrf) ?>">
   <title>Настройки — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=6">
   <link rel="stylesheet" href="assets/settings.css?v=1">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
