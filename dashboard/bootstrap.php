@@ -192,6 +192,9 @@ function dashboard_config_builtin(): array
         'gemini_api_key' => 'AIzaSyDemoGeminiKey_ReplacedLater_0123456789abcd',
         'groq_api_key' => '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',
         'anthropic_api_key' => '',
+        'sheets_churn_csv' => '',
+        'sheets_ds_csv' => '',
+        'ai_auto_snapshot_hours' => '24',
     ];
 }
 
@@ -246,6 +249,9 @@ function dashboard_config(): array
     $geminiKey = dashboard_config_pick('DASHBOARD_GEMINI_API_KEY', $merged, $builtin, 'gemini_api_key');
     $groqKey = dashboard_config_pick('DASHBOARD_GROQ_API_KEY', $merged, $builtin, 'groq_api_key');
     $anthropicKey = dashboard_config_pick('DASHBOARD_ANTHROPIC_API_KEY', $merged, $builtin, 'anthropic_api_key');
+    $sheetsChurnCsv = dashboard_config_pick('DASHBOARD_SHEETS_CHURN_CSV', $merged, $builtin, 'sheets_churn_csv');
+    $sheetsDsCsv = dashboard_config_pick('DASHBOARD_SHEETS_DS_CSV', $merged, $builtin, 'sheets_ds_csv');
+    $aiAutoSnapshotHours = dashboard_config_pick('DASHBOARD_AI_AUTO_SNAPSHOT_HOURS', $merged, $builtin, 'ai_auto_snapshot_hours');
 
     $authEnabled = dashboard_env('DASHBOARD_AUTH_ENABLED');
     if ($authEnabled === '') {
@@ -276,6 +282,9 @@ function dashboard_config(): array
         'gemini_api_key' => trim((string) $geminiKey),
         'groq_api_key' => trim((string) $groqKey),
         'anthropic_api_key' => trim((string) $anthropicKey),
+        'sheets_churn_csv' => trim((string) $sheetsChurnCsv),
+        'sheets_ds_csv' => trim((string) $sheetsDsCsv),
+        'ai_auto_snapshot_hours' => trim((string) $aiAutoSnapshotHours) ?: '24',
     ];
 }
 

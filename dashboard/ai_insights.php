@@ -31,6 +31,16 @@ $hist = AiInsightsHistory::load();
 $historyCount = isset($hist['items']) && is_array($hist['items']) ? count($hist['items']) : 0;
 $chartHints = AiInsightsContext::chartHintsFromCharts($charts);
 // Мета-список снимков для UI сравнения (timestamp + краткие метрики, без текста анализа)
+// Auto-snapshot: check if last snapshot is older than configured interval
+$autoSnapshotHours = max(1, (int) ($c['ai_auto_snapshot_hours'] ?? 24));
+$lastItems = $hist['items'] ?? [];
+$lastSnapshotTs = 0;
+if (!empty($lastItems)) {
+    $lastItem = end($lastItems);
+    $lastSnapshotTs = (int) ($lastItem['t'] ?? 0);
+}
+$autoSnapshotNeeded = $keyConfigured && $patOk && (time() - $lastSnapshotTs) > ($autoSnapshotHours * 3600);
+
 $historyMeta = array_reverse(array_map(static function (array $item): array {
     $m = $item['metrics'] ?? [];
     return [
@@ -55,6 +65,7 @@ $bootstrapJson = json_encode(
         'chartsNeedAsyncRefresh' => $chartsNeedAsyncRefresh,
         'chartHints' => $chartHints,
         'providers' => array_values($configuredProviders),
+        'autoSnapshotNeeded' => $autoSnapshotNeeded,
         'csrf' => csrf_token(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
@@ -82,6 +93,7 @@ $bootstrapJson = json_encode(
         <a class="ai-nav-tab" href="manager.php">💰 ДЗ</a>
         <a class="ai-nav-tab" href="weekly.php">📅 Неделя</a>
         <span class="ai-nav-tab ai-nav-tab-active">🤖 AI</span>
+        <a class="ai-nav-tab" href="settings.php">⚙️ Настройки</a>
       </nav>
     </div>
     <div class="ai-topbar-right">

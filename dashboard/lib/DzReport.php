@@ -23,7 +23,22 @@ final class DzReport
 
     private const FILTER = "OR({Статус оплаты}='Не оплачен',{Статус оплаты}='Оплачен частично')";
 
-    private const AGING_KEYS = ['0–30' => true, '31–60' => true, '61–90' => true, '90+' => true];
+    /** Нормализованные ключи корзин просрочки (регулярный дефис) */
+    private const AGING_KEYS = ['0-15' => true, '16-30' => true, '31-60' => true, '61-90' => true, '91+' => true];
+
+    /** Маппинг значений поля «Группа просрочки» из Airtable → внутренний ключ */
+    private const AGING_FIELD_MAP = [
+        '0 - 15 дней'  => '0-15',
+        '16 - 30 дней' => '16-30',
+        '31 - 60 дней' => '31-60',
+        '61 - 90 дней' => '61-90',
+        '91+ дней'     => '91+',
+        // Старые варианты для обратной совместимости кэша
+        '0–30'  => '0-15',
+        '31–60' => '31-60',
+        '61–90' => '61-90',
+        '90+'   => '91+',
+    ];
 
     /** Table ID вида tbl… для запроса к API. */
     public static function getResolvedDebtTableId(
@@ -205,7 +220,7 @@ final class DzReport
         $rows = [];
         $totalDebt = 0.0;
         $overdueTotal = 0.0;
-        $aging = ['0–30' => 0.0, '31–60' => 0.0, '61–90' => 0.0, '90+' => 0.0];
+        $aging = ['0-15' => 0.0, '16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0];
         $byCompany = [];
         $byDirection = [];
         $byStatus = [];
@@ -225,7 +240,8 @@ final class DzReport
             $dueStr = self::dateStr($f['Срок оплаты'] ?? null);
             $due = $dueStr ? DateTimeImmutable::createFromFormat('Y-m-d', substr($dueStr, 0, 10)) : null;
             $daysOver = self::num($f['Кол-во дней просрочки'] ?? null);
-            $bucket = trim((string) ($f['Группа просрочки'] ?? ''));
+            $bucketRaw = trim((string) ($f['Группа просрочки'] ?? ''));
+            $bucket = self::AGING_FIELD_MAP[$bucketRaw] ?? ($bucketRaw !== '' && isset(self::AGING_KEYS[$bucketRaw]) ? $bucketRaw : '');
 
             $isOverdue = false;
             if ($daysOver !== null && $daysOver > 0) {
@@ -244,14 +260,16 @@ final class DzReport
             } elseif ($isOverdue && $due !== null) {
                 $secs = $todayDt->getTimestamp() - $due->getTimestamp();
                 $d = max(0, (int) floor($secs / 86400));
-                if ($d <= 30) {
-                    $aging['0–30'] += $amt;
+                if ($d <= 15) {
+                    $aging['0-15'] += $amt;
+                } elseif ($d <= 30) {
+                    $aging['16-30'] += $amt;
                 } elseif ($d <= 60) {
-                    $aging['31–60'] += $amt;
+                    $aging['31-60'] += $amt;
                 } elseif ($d <= 90) {
-                    $aging['61–90'] += $amt;
+                    $aging['61-90'] += $amt;
                 } else {
-                    $aging['90+'] += $amt;
+                    $aging['91+'] += $amt;
                 }
             }
 
@@ -288,6 +306,7 @@ final class DzReport
                 'dueDate' => $dueStr,
                 'daysOverdue' => $daysOver,
                 'agingBucket' => $bucket !== '' ? $bucket : null,
+                'agingBucketRaw' => $bucketRaw,
                 'ourCompany' => $our,
                 'direction' => $dir,
                 'nextStep' => self::richText($f['Следующий шаг_ Статус_'] ?? null),
@@ -489,7 +508,7 @@ final class DzReport
                 'invoiceCount' => $n,
                 'legalEntityCount' => $n,
             ],
-            'aging' => ['0–30' => 0.0, '31–60' => 0.0, '61–90' => 0.0, '90+' => 0.0],
+            'aging' => ['0-15' => 0.0, '16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0],
             'byStatus' => [],
             'byManager' => [],
             'byCompany' => [],

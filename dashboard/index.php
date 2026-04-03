@@ -200,6 +200,7 @@ function fmtR(float $v): string {
     <a class="hub-nav-tab" href="churn_fact.php">📉 Потери</a>
     <a class="hub-nav-tab" href="manager.php">💰 ДЗ</a>
     <a class="hub-nav-tab" href="ai_insights.php">🤖 AI</a>
+    <a class="hub-nav-tab" href="settings.php">⚙️ Настройки</a>
   </nav>
   <button class="btn-icon" id="btn-theme" title="Светлая тема" aria-label="Переключить тему">☀️</button>
 </div>

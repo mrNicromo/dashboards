@@ -911,6 +911,30 @@
       refreshChartsFromApi(payload);
     }
 
+    // Auto-snapshot: если последний снимок старше порога — тихо сохраняем метрики
+    if (payload.autoSnapshotNeeded) {
+      setTimeout(() => {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || payload.csrf || '';
+        fetch('ai_insights_snapshot_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({}),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.ok) {
+              const cnt = document.getElementById('ai-history-count');
+              if (cnt && data.historyCount != null) cnt.textContent = data.historyCount;
+              if (data.historyChart) {
+                buildHistoryChart(data.historyChart);
+                mergeBootstrapHistory(data.historyChart, data.historyCount);
+              }
+            }
+          })
+          .catch(() => {}); // тихо — не показываем ошибку
+      }, 3000); // через 3 сек после загрузки
+    }
+
     document.getElementById('btn-ai-expand')?.addEventListener('click', () => {
       const wrap = document.getElementById('ai-output-wrap');
       const btn = document.getElementById('btn-ai-expand');

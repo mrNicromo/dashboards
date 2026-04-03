@@ -62,23 +62,34 @@
   }
 
   function agingColor(key) {
-    return { '0–30': '#f5a623', '31–60': '#ff7c00', '61–90': '#ff453a', '90+': '#d00' }[key] || '#8b97a8';
+    return {
+      '0-15':  '#34c759',
+      '16-30': '#f5a623',
+      '31-60': '#ff7c00',
+      '61-90': '#ff453a',
+      '91+':   '#d00',
+      // Обратная совместимость со старыми ключами кэша
+      '0–30':  '#f5a623',
+      '31–60': '#ff7c00',
+      '61–90': '#ff453a',
+      '90+':   '#d00',
+    }[key] || '#8b97a8';
   }
 
   /* ── Situation logic ──────────────────────────────────────────────── */
   function situation(d) {
     var total = d.kpi.totalDebt || 0;
     var over  = d.kpi.overdueDebt || 0;
-    var ag90  = (d.aging && d.aging['90+']) || 0;
+    var ag90  = (d.aging && (d.aging['91+'] || d.aging['90+'])) || 0;
     var pctOver = pct(over, total);
     var pct90   = pct(ag90, total);
     if (pctOver < 25 && pct90 < 15) {
-      return { icon: '🟢', label: 'Ситуация в норме',     cls: 'sit-ok',   text: 'Просрочка ' + pctOver + '%, критичная (90+) ' + pct90 + '%' };
+      return { icon: '🟢', label: 'Ситуация в норме',     cls: 'sit-ok',   text: 'Просрочка ' + pctOver + '%, критичная (91+) ' + pct90 + '%' };
     }
     if (pctOver <= 50 && pct90 <= 30) {
-      return { icon: '🟡', label: 'Требует внимания',     cls: 'sit-warn', text: 'Просрочка ' + pctOver + '%, критичная (90+) ' + pct90 + '%' };
+      return { icon: '🟡', label: 'Требует внимания',     cls: 'sit-warn', text: 'Просрочка ' + pctOver + '%, критичная (91+) ' + pct90 + '%' };
     }
-    return   { icon: '🔴', label: 'Критическая ситуация', cls: 'sit-crit', text: 'Просрочка ' + pctOver + '%, критичная (90+) ' + pct90 + '%' };
+    return   { icon: '🔴', label: 'Критическая ситуация', cls: 'sit-crit', text: 'Просрочка ' + pctOver + '%, критичная (91+) ' + pct90 + '%' };
   }
 
   /* ── Build sections ────────────────────────────────────────────────── */

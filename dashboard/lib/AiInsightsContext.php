@@ -25,7 +25,7 @@ final class AiInsightsContext
 
         $inner = self::dzInner($dz);
         $aging = $inner['aging'] ?? [];
-        $agingLabels = ['0–30', '31–60', '61–90', '90+'];
+        $agingLabels = ['0-15', '16-30', '31-60', '61-90', '91+'];
         $agingVals = [];
         foreach ($agingLabels as $k) {
             $agingVals[] = round(self::agingBucketAmount($aging, $k));
@@ -385,7 +385,8 @@ final class AiInsightsContext
             'dzTotal' => (int) round((float) ($k['totalDebt'] ?? 0)),
             'dzOverdue' => (int) round((float) ($k['overdueDebt'] ?? 0)),
             'debtToMrrPct' => $k['debtToMrrPct'] ?? null,
-            'aging90p' => (int) round((float) ($ag['90+'] ?? 0)),
+            'aging91p' => (int) round((float) ($ag['91+'] ?? $ag['90+'] ?? 0)),
+            'aging90p' => (int) round((float) ($ag['91+'] ?? $ag['90+'] ?? 0)), // обратная совместимость
             'churnRisk' => (int) round((float) ($ch['totalRiskMrr'] ?? 0)),
             'churnProb3' => (int) round((float) ($ch['prob3Mrr'] ?? 0)),
             'churnClients' => (int) ($ch['clientsAtRisk'] ?? 0),
@@ -434,10 +435,11 @@ final class AiInsightsContext
                     'debtToMrrPct' => $debtToMrr,
                 ],
                 'aging' => [
-                    '0–30' => round((float) ($aging['0–30'] ?? 0)),
-                    '31–60' => round((float) ($aging['31–60'] ?? 0)),
-                    '61–90' => round((float) ($aging['61–90'] ?? 0)),
-                    '90+' => round((float) ($aging['90+'] ?? 0)),
+                    '0-15'  => round(self::agingBucketAmount($aging, '0-15')),
+                    '16-30' => round(self::agingBucketAmount($aging, '16-30')),
+                    '31-60' => round(self::agingBucketAmount($aging, '31-60')),
+                    '61-90' => round(self::agingBucketAmount($aging, '61-90')),
+                    '91+'   => round(self::agingBucketAmount($aging, '91+')),
                 ],
                 'topLegal' => $topLegal,
                 'rowSamples' => $rows,

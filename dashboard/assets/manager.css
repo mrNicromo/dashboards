@@ -342,6 +342,7 @@
 }
 .chip input[type=checkbox] { display: none; }
 
+.chip-0-15   { border-color: #34c759;        background: rgba(52,199,89,0.12);   color: #28a745; }
 .chip-16-30  { border-color: var(--warn);    background: rgba(245,166,35,0.12);  color: var(--warn); }
 .chip-31-60  { border-color: #ff7800;        background: rgba(255,120,0,0.12);   color: #ff9630; }
 .chip-61-90  { border-color: var(--danger);  background: rgba(255,69,58,0.12);   color: var(--danger); }
@@ -403,6 +404,7 @@
   font-weight: 700;
   white-space: nowrap;
 }
+.grp-0-15   { background: rgba(52,199,89,0.15);   color: #28a745; }
 .grp-16-30  { background: rgba(245,166,35,0.15);  color: var(--warn); }
 .grp-31-60  { background: rgba(255,120,0,0.15);   color: #ff9630; }
 .grp-61-90  { background: rgba(255,69,58,0.15);   color: var(--danger); }
@@ -617,6 +619,7 @@
   border-radius: 6px;
   transition: width 0.5s ease;
 }
+.chart-bar.bar-0-15   { background: #34c759; }
 .chart-bar.bar-16-30  { background: var(--warn); }
 .chart-bar.bar-31-60  { background: #ff7800; }
 .chart-bar.bar-61-90  { background: var(--danger); }

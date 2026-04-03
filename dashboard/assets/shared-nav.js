@@ -6,7 +6,7 @@
   'use strict';
 
   // ── Список страниц для prefetch ────────────────────────────
-  const PAGES = ['index.php', 'manager.php', 'churn.php', 'churn_fact.php', 'weekly.php', 'ai_insights.php'];
+  const PAGES = ['index.php', 'manager.php', 'churn.php', 'churn_fact.php', 'weekly.php', 'ai_insights.php', 'settings.php'];
 
   // ── Prefetch всех страниц сразу после загрузки ─────────────
   function prefetchPages() {
