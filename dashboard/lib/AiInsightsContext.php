@@ -543,9 +543,13 @@ final class AiInsightsContext
     public static function refreshCachesFromAirtable(array $c): void
     {
         require_once __DIR__ . '/Airtable.php';
+        require_once __DIR__ . '/DzWeeklyHistory.php';
+        require_once __DIR__ . '/DzWeekPayments.php';
+        require_once __DIR__ . '/DzMrrCache.php';
         require_once __DIR__ . '/DzReport.php';
         require_once __DIR__ . '/ChurnReport.php';
         require_once __DIR__ . '/ChurnFactReport.php';
+        require_once __DIR__ . '/LegalSiteCatalog.php';
         require_once __DIR__ . '/ManagerReport.php';
 
         $pat = trim((string) ($c['airtable_pat'] ?? ''));
