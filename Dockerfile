@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev lib
         "max_execution_time=0" \
         "max_input_time=300" \
         "output_buffering=Off" > /usr/local/etc/php/conf.d/zz-railway.ini \
-    && a2enmod rewrite headers \
     && php -r "exit(function_exists('curl_init') ? 0 : 1);" \
     && php -r "exit((int)!ini_get('allow_url_fopen'));" \
     && apt-get clean \
@@ -23,13 +22,6 @@ COPY dashboard/ /var/www/html/
 RUN mkdir -p /var/www/html/cache /var/www/html/snapshots \
     && chown -R www-data:www-data /var/www/html/cache /var/www/html/snapshots
 
-# Apache слушает PORT из Railway
-RUN echo 'ServerName localhost' >> /etc/apache2/apache2.conf
-COPY docker/apache-railway.conf /etc/apache2/sites-enabled/000-default.conf
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
-
 EXPOSE 80
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["apache2-foreground"]
+CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-80} -t /var/www/html"]
