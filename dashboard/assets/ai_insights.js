@@ -474,6 +474,7 @@
       }
       buildCharts(next);
       applyChartHints(next);
+      showDataTimestamp(Math.floor(Date.now() / 1000));
       if (syncEl) {
         syncEl.textContent = 'Графики обновлены из Airtable.';
         syncEl.hidden = false;
@@ -488,6 +489,23 @@
         syncEl.hidden = false;
       }
     }
+  }
+
+  // ── Data timestamp badge ──────────────────────────────────────────────────
+  function showDataTimestamp(syncedAtSec) {
+    const el = document.getElementById('ai-data-timestamp');
+    if (!el) return;
+    if (!syncedAtSec) { el.hidden = true; return; }
+    const diffMin = Math.round((Date.now() / 1000 - syncedAtSec) / 60);
+    let label;
+    if (diffMin < 1) label = 'данные только что';
+    else if (diffMin < 60) label = 'данные ' + diffMin + ' мин назад';
+    else {
+      const h = Math.floor(diffMin / 60);
+      label = 'данные ' + h + ' ч назад';
+    }
+    el.textContent = label;
+    el.hidden = false;
   }
 
   function syncThemeBtn() {
@@ -782,6 +800,7 @@
               });
               showOutputToolbar(true);
               showResultMeta(data.provider, data.llmModel, data.llmMs);
+              showDataTimestamp(Math.floor(Date.now() / 1000));
               const rw = document.getElementById('ai-restore-wrap');
               if (rw) rw.hidden = true;
 
@@ -917,6 +936,7 @@
       setProgressStep(3);
       setTimeout(() => setProgressStep(0), 2000);
       showResultMeta(j.provider, j.llmModel, j.llmMs);
+      showDataTimestamp(Math.floor(Date.now() / 1000));
       st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—');
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
@@ -1031,6 +1051,7 @@
       setProgressStep(3);
       setTimeout(() => setProgressStep(0), 2000);
       showResultMeta(j.provider, j.llmModel, j.llmMs);
+      showDataTimestamp(Math.floor(Date.now() / 1000));
       st.textContent = 'Снимок сохранён в истории: ' + (j.historyCount ?? '—');
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
@@ -1141,19 +1162,60 @@
     }
     bindTheme();
 
+    // Data timestamp
+    showDataTimestamp(payload.syncedAt || null);
+
     document.getElementById('btn-generate')?.addEventListener('click', generate);
     document.getElementById('btn-generate-stream')?.addEventListener('click', generateStream);
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
+    document.getElementById('btn-analyze-all')?.addEventListener('click', analyzeAll);
 
-    // Custom question toggle
+    // Sync-only button
+    document.getElementById('btn-sync-data')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-sync-data');
+      const syncEl = document.getElementById('ai-charts-sync-status');
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      if (btn) btn.disabled = true;
+      if (syncEl) { syncEl.textContent = 'Синхронизация с Airtable…'; syncEl.hidden = false; }
+      try {
+        const r = await fetch('ai_insights_refresh_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({}),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          if (syncEl) { syncEl.textContent = j.error || 'Ошибка синхронизации'; syncEl.hidden = false; }
+          return;
+        }
+        mergeBootstrapCharts(j.charts, j.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        renderVisualSummary(next);
+        showDataTimestamp(Math.floor(Date.now() / 1000));
+        if (syncEl) {
+          syncEl.textContent = 'Данные обновлены.';
+          syncEl.hidden = false;
+          setTimeout(() => { syncEl.hidden = true; }, 3000);
+        }
+      } catch (e) {
+        if (syncEl) { syncEl.textContent = 'Сеть: ' + String(e?.message || e); syncEl.hidden = false; }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+
+    // Custom question toggle + presets
     document.getElementById('btn-custom-question-toggle')?.addEventListener('click', () => {
       const body = document.getElementById('ai-custom-question-body');
-      const btn = document.getElementById('btn-custom-question-toggle');
-      if (!body || !btn) return;
-      const open = !body.hidden;
-      body.hidden = open;
-      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-      btn.textContent = open ? '＋ Добавить свой вопрос к данным' : '− Скрыть вопрос';
+      if (!body) return;
+      setCustomQuestionPanelOpen(body.hidden);
+    });
+    document.querySelectorAll('[data-ai-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        applyPresetQuestion(btn.getAttribute('data-ai-preset') || '');
+      });
     });
 
     // Comparison UI

@@ -561,6 +561,37 @@
   padding: 4px 14px 12px;
 }
 
+/* ── Snapshot card ───────────────────────────── */
+.ai-snapshot-card {
+  background:
+    linear-gradient(180deg, rgba(10,132,255,0.05) 0%, rgba(10,132,255,0.015) 100%),
+    var(--surface);
+}
+.ai-snapshot-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* ── Snapshot card actions ───────────────────── */
+.ai-snapshot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ai-data-timestamp {
+  font-size: 0.73rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ai-btn-sync {
+  font-size: 0.77rem !important;
+  padding: 5px 10px !important;
+}
+
 /* ── Progress step bar ───────────────────────── */
 .ai-progress-wrap {
   margin: 0 0 8px;

@@ -82,6 +82,7 @@ $bootstrapJson = json_encode(
         'autoSnapshotHours' => $autoSnapshotHours,
         'lastAnalysis' => $lastAnalysisText !== '' ? ['text' => $lastAnalysisText, 't' => $lastAnalysisTs] : null,
         'csrf' => csrf_token(),
+        'syncedAt' => $chartsNeedAsyncRefresh ? null : time(),
     ],
     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
 );
@@ -172,6 +173,29 @@ $bootstrapJson = json_encode(
     </div>
     <?php endif; ?>
 
+    <!-- Блок ошибок подключения (заполняется JS при ошибках Airtable/LLM) -->
+    <div id="ai-error-status-wrap" hidden></div>
+
+    <section class="ai-card ai-card-wide ai-snapshot-card">
+      <div class="ai-snapshot-head">
+        <div>
+          <h2>Снимок текущей ситуации</h2>
+          <p class="ai-card-hint">Ключевые показатели по текущему набору данных — что выглядит самым тяжёлым прямо сейчас.</p>
+        </div>
+        <div class="ai-snapshot-actions">
+          <span class="ai-data-timestamp" id="ai-data-timestamp" hidden></span>
+          <button type="button" class="btn-icon ai-btn-secondary ai-btn-sync" id="btn-sync-data" <?= $patOk ? '' : 'disabled' ?> title="Обновить данные из Airtable без запуска AI-анализа">↻ Синхронизировать</button>
+        </div>
+      </div>
+      <div class="ai-kpi-strip" id="ai-kpi-strip">
+        <div class="ai-kpi-card ai-kpi-card-muted">
+          <div class="ai-kpi-label">Подготовка витрины</div>
+          <div class="ai-kpi-value">…</div>
+          <div class="ai-kpi-meta">Собираем краткий сводный слой из текущего снимка графиков.</div>
+        </div>
+      </div>
+    </section>
+
     <section class="ai-card ai-card-wide" id="ai-card-history-wrap">
       <h2>История снимков (тренд)</h2>
       <p class="ai-card-hint">Каждая точка — сохранённые метрики. Сохраняется автоматически после «Сгенерировать анализ»; можно добавить точку без AI — «Записать снимок метрик». Всего в истории: <strong id="ai-history-count"><?= (int) $historyCount ?></strong>.</p>
@@ -247,6 +271,12 @@ $bootstrapJson = json_encode(
             rows="3"
             maxlength="1000"
           ></textarea>
+          <div class="ai-preset-row" id="ai-preset-row">
+            <button type="button" class="ai-preset-chip" data-ai-preset="Собери конкретный план действий на 7 дней: выдели самые срочные риски, расставь приоритеты и дай короткие исполнимые шаги.">План на 7 дней</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сделай разбор по менеджерам: где у кого самая большая проблема, какие суммы или клиенты её формируют и что каждому делать дальше.">По менеджерам</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сфокусируйся на самых критичных долгах 91+ и выше: какие клиенты или зоны требуют немедленного вмешательства и какие действия нужны в первую очередь.">Критичные долги 91+</button>
+            <button type="button" class="ai-preset-chip" data-ai-preset="Сравни, где сейчас основной риск для выручки: дебиторка, churn или фактические потери. Дай короткое объяснение и приоритет действий.">Где главный риск</button>
+          </div>
           <p class="ai-card-hint">Вопрос добавляется к промпту — модель ответит на него, используя данные снимка.</p>
         </div>
       </div>
@@ -259,9 +289,10 @@ $bootstrapJson = json_encode(
         <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden>Развернуть полностью</button>
       </div>
       <div class="ai-number-warn" id="ai-number-warn" hidden></div>
+      <div class="ai-outline" id="ai-outline" hidden></div>
       <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
         <div class="ai-markdown ai-markdown-empty" id="ai-output">
-          <p class="ai-output-placeholder">Нажмите «Сгенерировать анализ», чтобы получить текстовые выводы модели по данным дашборда.</p>
+          <p class="ai-output-placeholder">Нажмите «⚡ Анализировать», чтобы получить выводы AI по данным дашборда.</p>
         </div>
       </div>
     </section>
