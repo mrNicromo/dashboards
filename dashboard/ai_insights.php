@@ -95,7 +95,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=9">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=10">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -295,6 +295,14 @@ $bootstrapJson = json_encode(
         <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden>Развернуть полностью</button>
       </div>
       <div class="ai-number-warn" id="ai-number-warn" hidden></div>
+      <!-- Action items card — extracted from Приоритеты section -->
+      <div class="ai-actions-card" id="ai-actions-card" hidden>
+        <div class="ai-actions-head">
+          <span class="ai-actions-title">✅ Что делать</span>
+          <button type="button" class="ai-actions-clear" id="btn-actions-clear">Сбросить отметки</button>
+        </div>
+        <ul class="ai-actions-list" id="ai-actions-list"></ul>
+      </div>
       <div class="ai-outline" id="ai-outline" hidden></div>
       <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
         <div class="ai-markdown ai-markdown-empty" id="ai-output">
@@ -332,7 +340,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=12" defer></script>
+  <script src="assets/ai_insights.js?v=13" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

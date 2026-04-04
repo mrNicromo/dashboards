@@ -767,6 +767,141 @@
     if (tb) tb.hidden = !show;
   }
 
+  // Section name → CSS class + icon
+  const SECTION_MAP = [
+    { re: /сводк|kpi|ключев/i,         cls: 'ai-section-summary',  icon: '📊' },
+    { re: /общ.{0,10}картин|обзор/i,   cls: 'ai-section-overview', icon: '🔍' },
+    { re: /зон.{0,10}внима|риск|угроз/i, cls: 'ai-section-risks',  icon: '⚠️' },
+    { re: /приоритет|действи|план/i,    cls: 'ai-section-actions',  icon: '✅' },
+    { re: /прогноз|сценар/i,            cls: 'ai-section-forecast', icon: '📈' },
+    { re: /согласован|перекрёст/i,      cls: 'ai-section-cross',    icon: '🔗' },
+    { re: /тренд|динамик/i,             cls: 'ai-section-trend',    icon: '📉' },
+  ];
+
+  function classifySections(container) {
+    container.querySelectorAll('h2').forEach((h) => {
+      const txt = h.textContent || '';
+      for (const { re, cls, icon } of SECTION_MAP) {
+        if (re.test(txt)) {
+          h.classList.add(cls);
+          if (!h.textContent.startsWith(icon)) {
+            h.innerHTML = '<span aria-hidden="true">' + icon + '</span> ' + h.innerHTML;
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  function highlightNumbers(container) {
+    // Walk text nodes inside <p> and <li>, avoid <code> and <pre>
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        const tag = parent.tagName;
+        if (['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(tag)) return NodeFilter.FILTER_REJECT;
+        // Only inside p, li, td — skip headings
+        let el = parent;
+        while (el && el !== container) {
+          if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName)) return NodeFilter.FILTER_REJECT;
+          el = el.parentElement;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const val = node.nodeValue || '';
+      // Match: optional minus, digits with spaces, optional ₽ — or percentage like 12%
+      if (!/[\d]/.test(val)) return;
+      const frag = document.createDocumentFragment();
+      // Split by monetary amounts (number + ₽) and percentages
+      const parts = val.split(/(\-?[\d\s]{3,}(?:\s?\d{3})*\s*₽|\b\d+(?:[.,]\d+)?%)/g);
+      if (parts.length < 2) return;
+      parts.forEach((part) => {
+        if (/₽$/.test(part.trim())) {
+          const span = document.createElement('span');
+          span.className = 'ai-num-money';
+          span.textContent = part;
+          frag.appendChild(span);
+        } else if (/%$/.test(part.trim())) {
+          const span = document.createElement('span');
+          span.className = 'ai-num-pct-bad'; // default; could be smarter
+          span.textContent = part;
+          frag.appendChild(span);
+        } else {
+          frag.appendChild(document.createTextNode(part));
+        }
+      });
+      node.parentNode?.replaceChild(frag, node);
+    });
+  }
+
+  // localStorage key for action items state
+  function actionsKey(rawText) {
+    // Simple hash from first 120 chars
+    return 'aq_actions_' + btoa(encodeURIComponent((rawText || '').slice(0, 120))).slice(0, 24);
+  }
+
+  function extractActions(container, rawText) {
+    const card = document.getElementById('ai-actions-card');
+    const list = document.getElementById('ai-actions-list');
+    if (!card || !list) return;
+
+    // Find Приоритеты / Действия heading
+    let itemsUl = null;
+    for (const h of container.querySelectorAll('h2, h3')) {
+      if (/приоритет|действи|план|что делать/i.test(h.textContent || '')) {
+        let next = h.nextElementSibling;
+        while (next && !['UL', 'OL'].includes(next.tagName)) {
+          if (['H2', 'H3'].includes(next.tagName)) break;
+          next = next.nextElementSibling;
+        }
+        if (next && ['UL', 'OL'].includes(next.tagName)) { itemsUl = next; break; }
+      }
+    }
+    if (!itemsUl) { card.hidden = true; return; }
+
+    const storageKey = actionsKey(rawText);
+    let savedState = {};
+    try { savedState = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) {}
+
+    list.innerHTML = '';
+    let idx = 0;
+    itemsUl.querySelectorAll('li').forEach((li) => {
+      const text = (li.textContent || '').trim();
+      if (!text) return;
+      const id = 'ai-action-' + idx++;
+      const checked = !!savedState[id];
+      const item = document.createElement('li');
+      item.className = 'ai-action-item' + (checked ? ' ai-action-done' : '');
+      item.innerHTML =
+        '<input type="checkbox" id="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
+        '<label for="' + esc(id) + '">' + esc(text) + '</label>';
+      item.querySelector('input')?.addEventListener('change', (e) => {
+        item.classList.toggle('ai-action-done', e.target.checked);
+        try {
+          const st = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          if (e.target.checked) st[id] = 1; else delete st[id];
+          localStorage.setItem(storageKey, JSON.stringify(st));
+        } catch (_) {}
+      });
+      list.appendChild(item);
+    });
+
+    card.hidden = list.children.length === 0;
+
+    document.getElementById('btn-actions-clear')?.addEventListener('click', () => {
+      try { localStorage.removeItem(storageKey); } catch (_) {}
+      list.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = false;
+        cb.closest('.ai-action-item')?.classList.remove('ai-action-done');
+      });
+    }, { once: true });
+  }
+
   function renderMarkdown(text) {
     const out = document.getElementById('ai-output');
     if (!out) return;
@@ -776,6 +911,10 @@
     } else {
       out.innerHTML = '<pre style="white-space:pre-wrap;margin:0">' + esc(text) + '</pre>';
     }
+    classifySections(out);
+    highlightNumbers(out);
+    extractActions(out, text);
+    renderOutline();
     afterRenderAdjustLayout(text);
   }
 
