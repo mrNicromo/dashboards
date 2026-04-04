@@ -685,6 +685,181 @@
 .ai-cron-details[open] summary::before { content: '▾ '; }
 .ai-cron-details summary:hover { color: var(--text); }
 
+/* ── Section head (history, etc.) ───────────── */
+.ai-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.ai-history-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  background: rgba(10,132,255,0.12);
+  color: var(--accent);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* ── Charts header with collapse toggle ──────── */
+.ai-charts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 2px;
+}
+.ai-charts-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ai-charts-toggle {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.ai-charts-toggle:hover { color: var(--text); }
+.ai-chart-grid-hidden { display: none !important; }
+
+/* ── KPI delta arrows ────────────────────────── */
+.ai-kpi-delta {
+  font-size: 0.73rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+.ai-kpi-delta-bad  { color: var(--danger); }
+.ai-kpi-delta-ok   { color: var(--ok); }
+.ai-kpi-delta-neutral { color: var(--muted); }
+
+/* ── Skeleton KPI ────────────────────────────── */
+@keyframes ai-skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 0.2; }
+}
+.ai-kpi-skeleton {
+  background: var(--elevated);
+  border-color: transparent !important;
+}
+.ai-skel-line {
+  background: var(--border);
+  border-radius: 4px;
+  animation: ai-skeleton-pulse 1.3s ease-in-out infinite;
+}
+
+/* ── Better empty state ──────────────────────── */
+.ai-empty-state {
+  padding: 28px 20px;
+  text-align: center;
+}
+.ai-empty-icon {
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+  opacity: 0.7;
+}
+.ai-empty-title {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.ai-empty-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ── Toast notifications ─────────────────────── */
+.ai-toast-container {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.ai-toast {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  max-width: 88vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ai-toast-ok  { border-color: rgba(52,199,89,.45); color: var(--ok); }
+.ai-toast-err { border-color: rgba(255,69,58,.45); color: var(--danger); }
+
+/* ── FAB ─────────────────────────────────────── */
+.ai-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 500;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 1.35rem;
+  cursor: pointer;
+  box-shadow: 0 4px 22px rgba(10,132,255,0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  opacity: 0;
+}
+.ai-fab:hover:not(:disabled) {
+  transform: scale(1.07);
+  box-shadow: 0 6px 28px rgba(10,132,255,0.6);
+}
+.ai-fab:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-fab-visible {
+  display: flex;
+  opacity: 1;
+}
+
+/* ── Custom question — no toggle ─────────────── */
+.ai-custom-question-wrap {
+  margin: 10px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* ── Mobile ──────────────────────────────────── */
 @media (max-width: 600px) {
   .ai-topbar {

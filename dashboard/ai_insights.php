@@ -95,7 +95,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=8">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=9">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -188,20 +188,30 @@ $bootstrapJson = json_encode(
         </div>
       </div>
       <div class="ai-kpi-strip" id="ai-kpi-strip">
-        <div class="ai-kpi-card ai-kpi-card-muted">
-          <div class="ai-kpi-label">Подготовка витрины</div>
-          <div class="ai-kpi-value">…</div>
-          <div class="ai-kpi-meta">Собираем краткий сводный слой из текущего снимка графиков.</div>
+        <?php for ($i = 0; $i < 5; $i++): ?>
+        <div class="ai-kpi-card ai-kpi-skeleton">
+          <div class="ai-skel-line" style="width:60%;height:.65rem"></div>
+          <div class="ai-skel-line" style="width:80%;height:1.2rem;margin-top:6px"></div>
+          <div class="ai-skel-line" style="width:90%;height:.6rem;margin-top:6px"></div>
         </div>
+        <?php endfor; ?>
       </div>
     </section>
 
     <section class="ai-card ai-card-wide" id="ai-card-history-wrap">
-      <h2>История снимков (тренд)</h2>
-      <p class="ai-card-hint">Каждая точка — сохранённые метрики. Сохраняется автоматически после «Сгенерировать анализ»; можно добавить точку без AI — «Записать снимок метрик». Всего в истории: <strong id="ai-history-count"><?= (int) $historyCount ?></strong>.</p>
-      <p class="ai-card-hint ai-history-empty" id="ai-history-empty" <?= $historyCount > 0 ? 'hidden' : '' ?>>Пока нет сохранённых снимков — нажмите «Записать снимок метрик» или сгенерируйте анализ.</p>
+      <div class="ai-section-head">
+        <div>
+          <h2>История снимков <span class="ai-history-badge" id="ai-history-count-badge" <?= $historyCount > 0 ? '' : 'hidden' ?>><?= (int) $historyCount ?></span></h2>
+          <p class="ai-card-hint ai-history-empty" id="ai-history-empty" <?= $historyCount > 0 ? 'hidden' : '' ?>>Пока нет снимков — запустите анализ или нажмите «Записать снимок метрик».</p>
+        </div>
+      </div>
       <div class="ai-canvas-wrap ai-canvas-tall" id="ai-history-canvas-wrap" <?= $historyCount > 0 ? '' : 'hidden' ?>><canvas id="chart-history" aria-label="Динамика метрик по сохранённым снимкам"></canvas></div>
     </section>
+
+    <div class="ai-charts-header">
+      <span class="ai-charts-label">Графики</span>
+      <button type="button" class="ai-charts-toggle" id="btn-charts-toggle" aria-expanded="true">Скрыть ▴</button>
+    </div>
 
     <div class="ai-chart-grid">
       <section class="ai-card">
@@ -262,23 +272,19 @@ $bootstrapJson = json_encode(
       <div class="ai-result-meta" id="ai-result-meta" hidden></div>
 
       <div class="ai-custom-question-wrap" id="ai-custom-question-wrap">
-        <button type="button" class="ai-custom-question-toggle" id="btn-custom-question-toggle" aria-expanded="false">＋ Добавить свой вопрос к данным</button>
-        <div class="ai-custom-question-body" id="ai-custom-question-body" hidden>
-          <textarea
-            id="ai-custom-question"
-            class="ai-custom-question-textarea"
-            placeholder="Например: Какие клиенты из корзины 90+ ещё не закрыли долг? Или: Сравни риск чёрна этого месяца с прошлым."
-            rows="3"
-            maxlength="1000"
-          ></textarea>
-          <div class="ai-preset-row" id="ai-preset-row">
-            <button type="button" class="ai-preset-chip" data-ai-preset="Собери конкретный план действий на 7 дней: выдели самые срочные риски, расставь приоритеты и дай короткие исполнимые шаги.">План на 7 дней</button>
-            <button type="button" class="ai-preset-chip" data-ai-preset="Сделай разбор по менеджерам: где у кого самая большая проблема, какие суммы или клиенты её формируют и что каждому делать дальше.">По менеджерам</button>
-            <button type="button" class="ai-preset-chip" data-ai-preset="Сфокусируйся на самых критичных долгах 91+ и выше: какие клиенты или зоны требуют немедленного вмешательства и какие действия нужны в первую очередь.">Критичные долги 91+</button>
-            <button type="button" class="ai-preset-chip" data-ai-preset="Сравни, где сейчас основной риск для выручки: дебиторка, churn или фактические потери. Дай короткое объяснение и приоритет действий.">Где главный риск</button>
-          </div>
-          <p class="ai-card-hint">Вопрос добавляется к промпту — модель ответит на него, используя данные снимка.</p>
+        <div class="ai-preset-row" id="ai-preset-row">
+          <button type="button" class="ai-preset-chip" data-ai-preset="Собери конкретный план действий на 7 дней: выдели самые срочные риски, расставь приоритеты и дай короткие исполнимые шаги.">План на 7 дней</button>
+          <button type="button" class="ai-preset-chip" data-ai-preset="Сделай разбор по менеджерам: где у кого самая большая проблема, какие суммы или клиенты её формируют и что каждому делать дальше.">По менеджерам</button>
+          <button type="button" class="ai-preset-chip" data-ai-preset="Сфокусируйся на самых критичных долгах 91+ и выше: какие клиенты или зоны требуют немедленного вмешательства и какие действия нужны в первую очередь.">Критичные долги 91+</button>
+          <button type="button" class="ai-preset-chip" data-ai-preset="Сравни, где сейчас основной риск для выручки: дебиторка, churn или фактические потери. Дай короткое объяснение и приоритет действий.">Где главный риск</button>
         </div>
+        <textarea
+          id="ai-custom-question"
+          class="ai-custom-question-textarea"
+          placeholder="Свой вопрос к данным (необязательно) — Ctrl+Enter для запуска"
+          rows="2"
+          maxlength="1000"
+        ></textarea>
       </div>
       <p class="ai-restore-row" id="ai-restore-wrap" hidden>
         <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-restore">Показать последний сохранённый анализ</button>
@@ -292,7 +298,11 @@ $bootstrapJson = json_encode(
       <div class="ai-outline" id="ai-outline" hidden></div>
       <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
         <div class="ai-markdown ai-markdown-empty" id="ai-output">
-          <p class="ai-output-placeholder">Нажмите «⚡ Анализировать», чтобы получить выводы AI по данным дашборда.</p>
+          <div class="ai-empty-state">
+            <div class="ai-empty-icon">🤖</div>
+            <p class="ai-empty-title">Нажмите <strong>⚡ Анализировать</strong></p>
+            <p class="ai-empty-sub">AI проанализирует ДЗ, отток и потери — результат через 15–30 сек</p>
+          </div>
         </div>
       </div>
     </section>
@@ -313,33 +323,16 @@ $bootstrapJson = json_encode(
       <div id="ai-compare-result" hidden></div>
     </section>
 
-    <details class="ai-card ai-cron-details">
-      <summary>Автоматический анализ (cron) — для разработчиков</summary>
-      <p class="ai-card-hint" style="margin-top:10px">Запускайте анализ по расписанию без браузера — через <code>ai_insights_cron_api.php</code> с <code>DASHBOARD_API_SECRET</code>.</p>
-      <pre class="ai-cron-example"># Каждый день в 9:00 UTC
-0 9 * * * curl -s -X POST https://your-domain/ai_insights_cron_api.php \
-     -H "Authorization: Bearer &lt;DASHBOARD_API_SECRET&gt;" \
-     -H "Content-Type: application/json" \
-     -d '{}' &gt;&gt; /var/log/aq-ai-cron.log
-
-# Только снимок метрик (без вызова LLM):
-0 * * * * curl -s -X POST https://your-domain/ai_insights_cron_api.php \
-     -H "Authorization: Bearer &lt;DASHBOARD_API_SECRET&gt;" \
-     -H "Content-Type: application/json" \
-     -d '{"metricsOnly":true}'
-
-# Пороги алертов (env на сервере):
-# DASHBOARD_AI_ALERT_OVERDUE_PCT=40   — алерт если просрочка &gt; 40% ДЗ
-# DASHBOARD_AI_ALERT_AGING90_PCT=20   — алерт если корзина 90+ &gt; 20% ДЗ
-# DASHBOARD_AI_ALERT_CHURN_MRR=500000 — алерт если Churn-риск MRR &gt; 500 000 ₽</pre>
-    </details>
   </div>
+
+  <!-- FAB — появляется при скролле вниз -->
+  <button type="button" class="ai-fab" id="btn-fab" title="Анализировать" <?= $keyConfigured ? '' : 'disabled' ?>>⚡</button>
 
   <script type="application/json" id="ai-bootstrap"><?= $bootstrapJson ?></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=11" defer></script>
+  <script src="assets/ai_insights.js?v=12" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

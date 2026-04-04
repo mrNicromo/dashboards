@@ -53,24 +53,66 @@
   }
 
   function updateHistoryUi(count, hasSeries) {
-    const cnt = document.getElementById('ai-history-count');
+    const badge = document.getElementById('ai-history-count-badge');
     const empty = document.getElementById('ai-history-empty');
     const wrap = document.getElementById('ai-history-canvas-wrap');
-    if (cnt) cnt.textContent = String(count);
+    if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
     if (empty) empty.hidden = hasSeries && count > 0;
     if (wrap) wrap.hidden = !(hasSeries && count > 0);
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  function showToast(msg, type, duration) {
+    if (duration === undefined) duration = 3000;
+    if (!type) type = 'info';
+    let container = document.getElementById('ai-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'ai-toast-container';
+      container.className = 'ai-toast-container';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'ai-toast ai-toast-' + type;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => toast.classList.add('ai-toast-show'));
+    });
+    setTimeout(() => {
+      toast.classList.remove('ai-toast-show');
+      setTimeout(() => { try { toast.remove(); } catch (_) {} }, 300);
+    }, duration);
+  }
+
+  function formatHistoryLabel(raw) {
+    try {
+      // Handle "MM-DDThh:mm", "YYYY-MM-DDThh:mm:ss", ISO strings
+      let s = String(raw || '');
+      // Prepend year if looks like MM-DD...
+      if (/^\d{2}-\d{2}T/.test(s)) s = new Date().getFullYear() + '-' + s;
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return raw;
+      return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (_) { return raw; }
   }
 
   function buildHistoryChart(hc) {
     destroyHistoryChart();
     const canvas = document.getElementById('chart-history');
     if (!canvas || typeof Chart === 'undefined') return;
-    const labels = hc?.labels || [];
-    const count = hc?.count ?? labels.length;
-    const hasSeries = labels.length > 0;
+    const rawLabels = hc?.labels || [];
+    const labels = rawLabels.map(formatHistoryLabel);
+    const count = hc?.count ?? rawLabels.length;
+    const hasSeries = rawLabels.length > 0;
     updateHistoryUi(count, hasSeries);
     if (!hasSeries) return;
 
+    // Update badge
+    const badge = document.getElementById('ai-history-count-badge');
+    if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
+
+    const isSingle = rawLabels.length === 1;
     const pal = chartPalette();
     const grid = cssVar('--border', 'rgba(128,128,128,.2)');
     const text = cssVar('--text', '#e8edf4');
@@ -79,33 +121,37 @@
     const fy = hc.factTotalYtd || [];
     const hasFact = fy.some((v) => v != null && !Number.isNaN(v));
 
+    const pt = isSingle ? 6 : 3;
     const datasets = [
       {
         label: 'ДЗ всего',
         data: hc.dzTotal || [],
         borderColor: pal[0],
         backgroundColor: pal[0] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
       {
         label: 'Churn риск MRR',
         data: hc.churnRisk || [],
         borderColor: pal[1],
         backgroundColor: pal[1] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
       {
         label: 'Prob=3 MRR',
         data: hc.churnProb3 || [],
         borderColor: pal[2],
         backgroundColor: pal[2] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
     ];
     if (hasFact) {
@@ -429,6 +475,129 @@
     }
     setFoot('ai-hint-aging', h.aging);
     setFoot('ai-hint-managers', h.managers);
+  }
+
+  function renderKpiStrip(payload) {
+    const host = document.getElementById('ai-kpi-strip');
+    if (!host) return;
+    const charts = payload?.charts || {};
+    const historyMeta = payload?.historyMeta || [];
+
+    // Current values
+    const agingValues = charts?.dzAging?.values || [];
+    const dzTotal = sumSeries(agingValues);
+    const aging91 = Number(agingValues[agingValues.length - 1] || 0);
+    const churnValues = charts?.churnBySegment?.values || [];
+    const churnRisk = sumSeries(churnValues);
+    const segmentLabels = charts?.churnBySegment?.labels || [];
+    let mainSegment = '—'; let mainSegmentValue = 0;
+    if (segmentLabels.length && churnValues.length) {
+      const bi = churnValues.reduce((b, c, i) => (Number(c) > Number(churnValues[b] || 0) ? i : b), 0);
+      mainSegment = segmentLabels[bi] || '—'; mainSegmentValue = Number(churnValues[bi] || 0);
+    }
+    const managerLabels = charts?.dzByManager?.labels || [];
+    const managerValues = charts?.dzByManager?.values || [];
+    let topManager = '—'; let topManagerValue = 0;
+    if (managerLabels.length && managerValues.length) {
+      const ti = managerValues.reduce((b, c, i) => (Number(c) > Number(managerValues[b] || 0) ? i : b), 0);
+      topManager = managerLabels[ti] || '—'; topManagerValue = Number(managerValues[ti] || 0);
+    }
+    let factTotal = 0;
+    if (charts?.factByProduct?.labels?.length) {
+      factTotal = sumSeries(charts.factByProduct.churn) + sumSeries(charts.factByProduct.downsell);
+    } else if (charts?.factMonthly?.labels?.length) {
+      factTotal = sumSeries(charts.factMonthly.churn) + sumSeries(charts.factMonthly.downsell);
+    }
+
+    // Previous snapshot for delta (index 0 = newest in reversed list)
+    const prev = historyMeta.length > 0 ? (historyMeta[0].m || null) : null;
+
+    function mkDelta(current, prevVal, isBadWhenUp) {
+      if (prevVal == null || !Number.isFinite(current) || current === 0 || !Number.isFinite(Number(prevVal))) return '';
+      const diff = current - Number(prevVal);
+      if (Math.abs(diff) < 1) return '';
+      const pct = Math.round(Math.abs(diff / Number(prevVal)) * 100);
+      if (pct === 0) return '';
+      const up = diff > 0;
+      const bad = isBadWhenUp ? up : !up;
+      const cls = bad ? 'ai-kpi-delta-bad' : 'ai-kpi-delta-ok';
+      return '<span class="ai-kpi-delta ' + cls + '">' + (up ? '↑' : '↓') + pct + '%</span>';
+    }
+
+    const cards = [
+      {
+        label: 'Общая ДЗ',
+        value: dzTotal > 0 ? fullMoney(dzTotal) : '—',
+        delta: mkDelta(dzTotal, prev?.dzTotal, true),
+        meta: dzTotal > 0 ? 'Критичная 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal) : 'Нет данных по дебиторке.',
+        tone: dzTotal > 0 ? 'danger' : 'muted',
+      },
+      {
+        label: 'Корзина 91+',
+        value: aging91 > 0 ? fullMoney(aging91) : '—',
+        delta: mkDelta(aging91, prev?.dzOverdue, true),
+        meta: dzTotal > 0 ? 'Доля от ДЗ: ' + shareText(aging91, dzTotal) : 'Нет данных.',
+        tone: aging91 > 0 ? 'warn' : 'muted',
+      },
+      {
+        label: 'Churn risk MRR',
+        value: churnRisk > 0 ? fullMoney(churnRisk) : '—',
+        delta: mkDelta(churnRisk, prev?.churnRisk, true),
+        meta: churnRisk > 0 ? 'Топ сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue) : 'Нет данных по churn.',
+        tone: churnRisk > 0 ? 'accent' : 'muted',
+      },
+      {
+        label: 'Топ-менеджер по ДЗ',
+        value: topManager,
+        delta: '',
+        meta: topManagerValue > 0 ? fullMoney(topManagerValue) + ' в портфеле' : 'Нет менеджерской разбивки.',
+        tone: topManagerValue > 0 ? 'ok' : 'muted',
+      },
+      {
+        label: 'Потери YTD',
+        value: factTotal > 0 ? fullMoney(factTotal) : '—',
+        delta: mkDelta(factTotal, prev?.factTotalYtd, true),
+        meta: factTotal > 0 ? 'Churn + Downsell из фактического отчёта.' : 'Нет данных по потерям.',
+        tone: factTotal > 0 ? 'danger' : 'muted',
+      },
+    ];
+
+    host.innerHTML = cards.map((c) =>
+      '<div class="ai-kpi-card ai-kpi-card-' + esc(c.tone) + '">' +
+      '<div class="ai-kpi-label">' + esc(c.label) + '</div>' +
+      '<div class="ai-kpi-value">' + esc(c.value) + (c.delta || '') + '</div>' +
+      '<div class="ai-kpi-meta">' + esc(c.meta) + '</div>' +
+      '</div>'
+    ).join('');
+  }
+
+  function renderVisualSummary(payload) {
+    buildCharts(payload);
+    applyChartHints(payload);
+    renderKpiStrip(payload);
+  }
+
+  function clearOutline() {
+    const outline = document.getElementById('ai-outline');
+    if (!outline) return;
+    outline.hidden = true;
+    outline.innerHTML = '';
+  }
+
+  function renderOutline() {
+    const output = document.getElementById('ai-output');
+    const outline = document.getElementById('ai-outline');
+    if (!output || !outline) return;
+    const headings = Array.from(output.querySelectorAll('h2, h3'));
+    if (!headings.length) { clearOutline(); return; }
+    headings.forEach((h, i) => { if (!h.id) h.id = headingId(h.textContent || '', i + 1); });
+    outline.hidden = false;
+    outline.innerHTML = '<div class="ai-outline-title">Навигация по ответу</div>' +
+      '<div class="ai-outline-items">' +
+      headings.map((h) => {
+        const sub = h.tagName === 'H3' ? ' ai-outline-link-sub' : '';
+        return '<a class="ai-outline-link' + sub + '" href="#' + esc(h.id) + '">' + esc(h.textContent || '') + '</a>';
+      }).join('') + '</div>';
   }
 
   async function refreshChartsFromApi(payload) {
@@ -1132,8 +1301,9 @@
         st.classList.add('ai-status-err');
         return;
       }
-      st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—') + '.';
-      st.classList.add('ai-status-ok');
+      showToast('Снимок сохранён. В истории: ' + (j.historyCount ?? '—'), 'ok');
+      st.textContent = '';
+      st.classList.remove('ai-status-ok');
       if (j.historyChart) {
         buildHistoryChart(j.historyChart);
         mergeBootstrapHistory(j.historyChart, j.historyCount);
@@ -1153,8 +1323,7 @@
     try {
       payload = JSON.parse(raw.textContent || '{}');
     } catch (_) {}
-    buildCharts(payload);
-    applyChartHints(payload);
+    renderVisualSummary(payload);
     if (payload.historyChart && payload.historyChart.labels && payload.historyChart.labels.length) {
       buildHistoryChart(payload.historyChart);
     } else {
@@ -1195,9 +1364,8 @@
         renderVisualSummary(next);
         showDataTimestamp(Math.floor(Date.now() / 1000));
         if (syncEl) {
-          syncEl.textContent = 'Данные обновлены.';
-          syncEl.hidden = false;
-          setTimeout(() => { syncEl.hidden = true; }, 3000);
+          showToast('Данные обновлены из Airtable', 'ok');
+          if (syncEl) syncEl.hidden = true;
         }
       } catch (e) {
         if (syncEl) { syncEl.textContent = 'Сеть: ' + String(e?.message || e); syncEl.hidden = false; }
@@ -1220,6 +1388,37 @@
 
     // Comparison UI
     initCompareUi(payload);
+
+    // Ctrl+Enter → run stream analysis
+    document.getElementById('ai-custom-question')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        generateStream();
+      }
+    });
+
+    // Chart grid collapse
+    document.getElementById('btn-charts-toggle')?.addEventListener('click', () => {
+      const grid = document.querySelector('.ai-chart-grid');
+      const btn = document.getElementById('btn-charts-toggle');
+      if (!grid || !btn) return;
+      const hidden = grid.classList.toggle('ai-chart-grid-hidden');
+      btn.textContent = hidden ? 'Показать ▾' : 'Скрыть ▴';
+      btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    });
+
+    // FAB — show when main generate button scrolled out of view
+    const fab = document.getElementById('btn-fab');
+    if (fab) {
+      fab.addEventListener('click', generateStream);
+      const sentinel = document.getElementById('btn-generate-stream');
+      if (sentinel && 'IntersectionObserver' in window) {
+        const obs = new IntersectionObserver((entries) => {
+          fab.classList.toggle('ai-fab-visible', !entries[0].isIntersecting);
+        }, { threshold: 0 });
+        obs.observe(sentinel);
+      }
+    }
 
     // Авто-анализ запускается если прошло больше порога (включает синхронизацию Airtable внутри).
     // Если авто-анализ — НЕ запускаем отдельный refreshChartsFromApi, чтобы не конкурировать за лок.
