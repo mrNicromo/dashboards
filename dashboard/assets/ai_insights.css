@@ -337,6 +337,35 @@
   text-decoration: line-through;
 }
 
+/* Plan / timeline section */
+.ai-plan-section {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent, #0a84ff) 8%, var(--surface, #1c1c1e)), var(--surface, #1c1c1e));
+  border: 1px solid color-mix(in srgb, var(--accent, #0a84ff) 25%, var(--border, #3a3a3c));
+  border-radius: 12px;
+}
+.ai-plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ai-plan-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent, #0a84ff);
+}
+.ai-plan-hint {
+  font-size: 0.75rem;
+  color: var(--muted, #8e8e93);
+}
+.ai-plan-chart-wrap {
+  position: relative;
+  min-height: 60px;
+  max-height: 320px;
+}
+
 .ai-restore-row {
   margin: 0 0 10px;
 }

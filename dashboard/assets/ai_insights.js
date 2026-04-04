@@ -571,9 +571,13 @@
     ).join('');
   }
 
+  // Stored for lazy chart rendering on first btn click
+  let _chartsPayload = null;
+  let _chartsBuilt = false;
+
   function renderVisualSummary(payload) {
-    buildCharts(payload);
-    applyChartHints(payload);
+    _chartsPayload = payload;
+    // Charts are lazy — built on first btn-charts-toggle click
     renderKpiStrip(payload);
   }
 
@@ -643,6 +647,7 @@
       }
       buildCharts(next);
       applyChartHints(next);
+      _chartsBuilt = true; _chartsPayload = next;
       showDataTimestamp(Math.floor(Date.now() / 1000));
       if (syncEl) {
         syncEl.textContent = 'Графики обновлены из Airtable.';
@@ -840,6 +845,87 @@
   }
 
   // localStorage key for action items state
+  let _planChart = null;
+
+  function renderPlanChart(items) {
+    const section = document.getElementById('ai-plan-section');
+    const canvas = document.getElementById('ai-plan-chart');
+    if (!section || !canvas || !items.length) {
+      if (section) section.hidden = true;
+      return;
+    }
+    if (_planChart) { _planChart.destroy(); _planChart = null; }
+
+    const MAX_TASKS = 10;
+    const tasks = items.slice(0, MAX_TASKS);
+    const labels = tasks.map((t, i) => {
+      const clean = t.replace(/^\d+[\.\)]\s*/, '').replace(/\*+/g, '').trim();
+      return clean.length > 55 ? clean.slice(0, 52) + '…' : clean;
+    });
+    // Gantt-style: [startWeek, endWeek] — task i starts at week i, lasts 1 week
+    const data = tasks.map((_, i) => [i, i + 1]);
+    const colors = [
+      'rgba(10,132,255,0.75)', 'rgba(48,209,88,0.75)', 'rgba(255,159,10,0.75)',
+      'rgba(255,69,58,0.75)',  'rgba(100,210,255,0.75)','rgba(191,90,242,0.75)',
+      'rgba(255,214,10,0.75)', 'rgba(48,209,88,0.6)',   'rgba(10,132,255,0.6)',
+      'rgba(255,69,58,0.6)',
+    ];
+
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    const textColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)';
+
+    _planChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Неделя',
+          data,
+          backgroundColor: tasks.map((_, i) => colors[i % colors.length]),
+          borderRadius: 4,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const [s, e] = ctx.raw;
+                return ' Неделя ' + (s + 1) + (e > s + 1 ? '–' + e : '');
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: tasks.length,
+            ticks: {
+              stepSize: 1,
+              color: textColor,
+              callback: (v) => v === 0 ? 'Сейчас' : 'Нед. ' + v,
+            },
+            grid: { color: gridColor },
+          },
+          y: {
+            ticks: { color: textColor, font: { size: 11 } },
+            grid: { display: false },
+          },
+        },
+      },
+    });
+
+    // Adjust canvas height based on task count
+    canvas.parentElement.style.height = Math.max(80, tasks.length * 34 + 20) + 'px';
+    section.hidden = false;
+  }
+
   function actionsKey(rawText) {
     // Simple hash from first 120 chars
     return 'aq_actions_' + btoa(encodeURIComponent((rawText || '').slice(0, 120))).slice(0, 24);
@@ -892,6 +978,10 @@
     });
 
     card.hidden = list.children.length === 0;
+
+    // Build plan timeline from extracted action items
+    const actionTexts = Array.from(list.querySelectorAll('label')).map((l) => l.textContent || '');
+    renderPlanChart(actionTexts);
 
     document.getElementById('btn-actions-clear')?.addEventListener('click', () => {
       try { localStorage.removeItem(storageKey); } catch (_) {}
@@ -1536,13 +1626,19 @@
       }
     });
 
-    // Chart grid collapse
+    // Chart grid — lazy build on first click, then toggle
     document.getElementById('btn-charts-toggle')?.addEventListener('click', () => {
-      const grid = document.querySelector('.ai-chart-grid');
+      const grid = document.getElementById('ai-chart-grid');
       const btn = document.getElementById('btn-charts-toggle');
       if (!grid || !btn) return;
+      // First click: build charts then show
+      if (!_chartsBuilt && _chartsPayload) {
+        buildCharts(_chartsPayload);
+        applyChartHints(_chartsPayload);
+        _chartsBuilt = true;
+      }
       const hidden = grid.classList.toggle('ai-chart-grid-hidden');
-      btn.textContent = hidden ? 'Показать ▾' : 'Скрыть ▴';
+      btn.textContent = hidden ? 'Загрузить графики ▾' : 'Скрыть графики ▴';
       btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
     });
 

@@ -95,7 +95,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=10">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=11">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -210,10 +210,10 @@ $bootstrapJson = json_encode(
 
     <div class="ai-charts-header">
       <span class="ai-charts-label">Графики</span>
-      <button type="button" class="ai-charts-toggle" id="btn-charts-toggle" aria-expanded="true">Скрыть ▴</button>
+      <button type="button" class="ai-charts-toggle" id="btn-charts-toggle" aria-expanded="false">Загрузить графики ▾</button>
     </div>
 
-    <div class="ai-chart-grid">
+    <div class="ai-chart-grid ai-chart-grid-hidden" id="ai-chart-grid">
       <section class="ai-card">
         <h2>ДЗ: просрочка по корзинам</h2>
         <p class="ai-card-hint">Снимок дебиторки из Airtable (счета)</p>
@@ -303,6 +303,16 @@ $bootstrapJson = json_encode(
         </div>
         <ul class="ai-actions-list" id="ai-actions-list"></ul>
       </div>
+      <!-- Plan/timeline section — built from action items -->
+      <div class="ai-plan-section" id="ai-plan-section" hidden>
+        <div class="ai-plan-head">
+          <span class="ai-plan-title">📅 Недельный план</span>
+          <span class="ai-plan-hint">Порядок выполнения задач по неделям</span>
+        </div>
+        <div class="ai-plan-chart-wrap">
+          <canvas id="ai-plan-chart" height="160"></canvas>
+        </div>
+      </div>
       <div class="ai-outline" id="ai-outline" hidden></div>
       <div class="ai-output-wrap ai-output-wrap-collapsed" id="ai-output-wrap">
         <div class="ai-markdown ai-markdown-empty" id="ai-output">
@@ -340,7 +350,7 @@ $bootstrapJson = json_encode(
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=13" defer></script>
+  <script src="assets/ai_insights.js?v=14" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
