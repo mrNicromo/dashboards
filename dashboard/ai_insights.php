@@ -102,7 +102,7 @@ $bootstrapJson = json_encode(
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>AI-аналитика — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/ai_insights.css?v=11">
+  <link rel="stylesheet" href="assets/ai_insights.css?v=12">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -184,7 +184,7 @@ $bootstrapJson = json_encode(
         </div>
         <div class="ai-snapshot-actions">
           <span class="ai-data-timestamp" id="ai-data-timestamp" hidden></span>
-          <button type="button" class="btn-icon ai-btn-secondary ai-btn-sync" id="btn-sync-data" <?= $patOk ? '' : 'disabled' ?> title="Обновить данные из Airtable без запуска AI-анализа">↻ Синхронизировать</button>
+          <button type="button" class="btn-icon ai-btn-secondary ai-btn-sync" id="btn-sync-data" <?= $patOk ? '' : 'disabled' ?> data-tip="Загружает свежие данные из Airtable без запуска AI. Используйте перед анализом, если данные изменились.">↻ Синхронизировать</button>
         </div>
       </div>
       <div class="ai-kpi-strip" id="ai-kpi-strip">
@@ -210,7 +210,7 @@ $bootstrapJson = json_encode(
 
     <div class="ai-charts-header">
       <span class="ai-charts-label">Графики</span>
-      <button type="button" class="ai-charts-toggle" id="btn-charts-toggle" aria-expanded="false">Загрузить графики ▾</button>
+      <button type="button" class="ai-charts-toggle" id="btn-charts-toggle" aria-expanded="false" data-tip="Показывает KPI-графики: просрочка ДЗ, churn по сегментам, топ-менеджеры. Загружается один раз.">Загрузить графики ▾</button>
     </div>
 
     <div class="ai-chart-grid ai-chart-grid-hidden" id="ai-chart-grid">
@@ -252,20 +252,20 @@ $bootstrapJson = json_encode(
       <div class="ai-insight-head">
         <h2>Выводы и решения</h2>
         <div class="ai-insight-actions">
-          <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" title="Сохранить текущие метрики в историю без вызова AI">Записать снимок метрик</button>
-          <button type="button" class="btn-icon ai-btn-primary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> title="Текст появляется сразу по мере ответа модели">⚡ Анализировать</button>
-          <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?> title="Ожидает полного ответа и показывает всё сразу">Без стриминга</button>
-          <button type="button" class="btn-icon ai-btn-force" id="btn-analyze-all" <?= $keyConfigured ? '' : 'disabled' ?> title="Принудительная синхронизация всех данных из Airtable без кэша + краткий анализ всех дашбордов">🔄 Все дашборды</button>
+          <button type="button" class="btn-icon ai-btn-secondary" id="btn-snapshot" data-tip="Фиксирует текущие метрики в историю без AI. Полезно для сравнения «до/после».">Записать снимок метрик</button>
+          <button type="button" class="btn-icon ai-btn-primary" id="btn-generate-stream" <?= $keyConfigured ? '' : 'disabled' ?> data-tip="Запустить анализ. Ответ появляется постепенно. Горячая клавиша: Ctrl+Enter">⚡ Анализировать</button>
+          <button type="button" class="btn-icon ai-btn-secondary" id="btn-generate" <?= $keyConfigured ? '' : 'disabled' ?> data-tip="Ожидает полного ответа от модели и показывает всё сразу — медленнее, но стабильнее.">Без стриминга</button>
+          <button type="button" class="btn-icon ai-btn-force" id="btn-analyze-all" <?= $keyConfigured ? '' : 'disabled' ?> data-tip="Принудительная синхронизация всех данных из Airtable + краткий анализ по всем дашбордам. Тратит больше токенов.">🔄 Все дашборды</button>
         </div>
       </div>
       <!-- Progress bar -->
       <div class="ai-progress-wrap" id="ai-progress-wrap" hidden>
         <div class="ai-progress-steps">
-          <div class="ai-progress-step" id="ai-step-sync">📡 Данные</div>
+          <div class="ai-progress-step" id="ai-step-sync" data-tip="Синхронизация ДЗ, churn и потерь из Airtable">📡 Данные</div>
           <div class="ai-progress-sep">›</div>
-          <div class="ai-progress-step" id="ai-step-model">🧠 Анализ</div>
+          <div class="ai-progress-step" id="ai-step-model" data-tip="Запрос к AI-модели (Gemini/Groq/Claude)">🧠 Анализ</div>
           <div class="ai-progress-sep">›</div>
-          <div class="ai-progress-step" id="ai-step-done">✓ Готово</div>
+          <div class="ai-progress-step" id="ai-step-done" data-tip="Результат получен и отрисован">✓ Готово</div>
         </div>
       </div>
       <p class="ai-card-hint" id="ai-status">«⚡ Анализировать» — синхронизация Airtable → модель, текст идёт потоком. «Без стриминга» — то же, но ожидает полного ответа. «Записать снимок» — только метрики без AI.</p>
@@ -287,19 +287,19 @@ $bootstrapJson = json_encode(
         ></textarea>
       </div>
       <p class="ai-restore-row" id="ai-restore-wrap" hidden>
-        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-restore">Показать последний сохранённый анализ</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-restore" data-tip="Показать последний анализ, сохранённый на сервере">Показать последний сохранённый анализ</button>
       </p>
       <div class="ai-output-toolbar" id="ai-output-toolbar" hidden>
-        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-copy">Копировать Markdown</button>
-        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-dl">Скачать .md</button>
-        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden>Развернуть полностью</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-copy" data-tip="Скопировать результат в буфер обмена в формате Markdown">Копировать Markdown</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-dl" data-tip="Скачать анализ как файл .md — удобно для архива или отправки в мессенджер">Скачать .md</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-ai-expand" hidden data-tip="Показать полный текст без ограничения высоты">Развернуть полностью</button>
       </div>
       <div class="ai-number-warn" id="ai-number-warn" hidden></div>
       <!-- Action items card — extracted from Приоритеты section -->
       <div class="ai-actions-card" id="ai-actions-card" hidden>
         <div class="ai-actions-head">
-          <span class="ai-actions-title">✅ Что делать</span>
-          <button type="button" class="ai-actions-clear" id="btn-actions-clear">Сбросить отметки</button>
+          <span class="ai-actions-title" data-tip="Задачи из раздела «Приоритеты» в ответе AI. Отмечайте галочками — состояние сохраняется в браузере.">✅ Что делать</span>
+          <button type="button" class="ai-actions-clear" id="btn-actions-clear" data-tip="Снять все галочки и сбросить прогресс">Сбросить отметки</button>
         </div>
         <ul class="ai-actions-list" id="ai-actions-list"></ul>
       </div>
@@ -336,7 +336,7 @@ $bootstrapJson = json_encode(
           <label class="ai-compare-label">Снимок B (старше)</label>
           <select id="ai-compare-b" class="ai-compare-select"></select>
         </div>
-        <button type="button" class="btn-icon ai-btn-secondary" id="btn-compare">Сравнить</button>
+        <button type="button" class="btn-icon ai-btn-secondary" id="btn-compare" data-tip="Показывает дельту метрик между снимком A и B: ДЗ, churn, потери">Сравнить</button>
       </div>
       <div id="ai-compare-result" hidden></div>
     </section>
@@ -344,13 +344,13 @@ $bootstrapJson = json_encode(
   </div>
 
   <!-- FAB — появляется при скролле вниз -->
-  <button type="button" class="ai-fab" id="btn-fab" title="Анализировать" <?= $keyConfigured ? '' : 'disabled' ?>>⚡</button>
+  <button type="button" class="ai-fab" id="btn-fab" data-tip="Запустить анализ (Ctrl+Enter)" data-tip-pos="below" <?= $keyConfigured ? '' : 'disabled' ?>>⚡</button>
 
   <script type="application/json" id="ai-bootstrap"><?= $bootstrapJson ?></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-  <script src="assets/ai_insights.js?v=14" defer></script>
+  <script src="assets/ai_insights.js?v=15" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>

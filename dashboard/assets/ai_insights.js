@@ -627,6 +627,7 @@
         delta: mkDelta(dzTotal, prev?.dzTotal, true),
         meta: dzTotal > 0 ? 'Критичная 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal) : 'Нет данных по дебиторке.',
         tone: dzTotal > 0 ? 'danger' : 'muted',
+        tip: 'Суммарная дебиторская задолженность по всем клиентам из Airtable (счета). Стрелка показывает изменение от предыдущего снимка.',
       },
       {
         label: 'Корзина 91+',
@@ -634,6 +635,7 @@
         delta: mkDelta(aging91, prev?.dzOverdue, true),
         meta: dzTotal > 0 ? 'Доля от ДЗ: ' + shareText(aging91, dzTotal) : 'Нет данных.',
         tone: aging91 > 0 ? 'warn' : 'muted',
+        tip: 'ДЗ старше 91 дня — самая рискованная часть портфеля, где высока вероятность невозврата.',
       },
       {
         label: 'Churn risk MRR',
@@ -641,6 +643,7 @@
         delta: mkDelta(churnRisk, prev?.churnRisk, true),
         meta: churnRisk > 0 ? 'Топ сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue) : 'Нет данных по churn.',
         tone: churnRisk > 0 ? 'accent' : 'muted',
+        tip: 'MRR клиентов с угрозой оттока по отчёту «Угроза Churn» в Airtable. Требует внимания CSM.',
       },
       {
         label: 'Топ-менеджер по ДЗ',
@@ -648,6 +651,7 @@
         delta: '',
         meta: topManagerValue > 0 ? fullMoney(topManagerValue) + ' в портфеле' : 'Нет менеджерской разбивки.',
         tone: topManagerValue > 0 ? 'ok' : 'muted',
+        tip: 'Менеджер с наибольшей суммарной дебиторкой в портфеле — приоритет для проработки.',
       },
       {
         label: 'Потери YTD',
@@ -655,11 +659,12 @@
         delta: mkDelta(factTotal, prev?.factTotalYtd, true),
         meta: factTotal > 0 ? 'Churn + Downsell из фактического отчёта.' : 'Нет данных по потерям.',
         tone: factTotal > 0 ? 'danger' : 'muted',
+        tip: 'Фактические потери с начала года: churn (уход клиентов) + downsell (снижение тарифа). Источник: отчёт потерь.',
       },
     ];
 
     host.innerHTML = cards.map((c) =>
-      '<div class="ai-kpi-card ai-kpi-card-' + esc(c.tone) + '">' +
+      '<div class="ai-kpi-card ai-kpi-card-' + esc(c.tone) + '"' + (c.tip ? ' data-tip="' + esc(c.tip) + '" data-tip-align="left"' : '') + '>' +
       '<div class="ai-kpi-label">' + esc(c.label) + '</div>' +
       '<div class="ai-kpi-value">' + esc(c.value) + (c.delta || '') + '</div>' +
       '<div class="ai-kpi-meta">' + esc(c.meta) + '</div>' +
@@ -869,23 +874,25 @@
 
   // Section name → CSS class + icon
   const SECTION_MAP = [
-    { re: /сводк|kpi|ключев/i,         cls: 'ai-section-summary',  icon: '📊' },
-    { re: /общ.{0,10}картин|обзор/i,   cls: 'ai-section-overview', icon: '🔍' },
-    { re: /зон.{0,10}внима|риск|угроз/i, cls: 'ai-section-risks',  icon: '⚠️' },
-    { re: /приоритет|действи|план/i,    cls: 'ai-section-actions',  icon: '✅' },
-    { re: /прогноз|сценар/i,            cls: 'ai-section-forecast', icon: '📈' },
-    { re: /согласован|перекрёст/i,      cls: 'ai-section-cross',    icon: '🔗' },
-    { re: /тренд|динамик/i,             cls: 'ai-section-trend',    icon: '📉' },
+    { re: /сводк|kpi|ключев/i,           cls: 'ai-section-summary',  icon: '📊', tip: 'Сводка ключевых показателей: ДЗ, churn, потери' },
+    { re: /общ.{0,10}картин|обзор/i,     cls: 'ai-section-overview', icon: '🔍', tip: 'Общая картина по данным на момент анализа' },
+    { re: /зон.{0,10}внима|риск|угроз/i, cls: 'ai-section-risks',    icon: '⚠️', tip: 'Зоны риска — требуют немедленного внимания' },
+    { re: /приоритет|действи|план/i,      cls: 'ai-section-actions',  icon: '✅', tip: 'Приоритетные действия — из них строится план и чеклист ниже' },
+    { re: /прогноз|сценар/i,              cls: 'ai-section-forecast', icon: '📈', tip: 'Прогноз и сценарии развития ситуации' },
+    { re: /согласован|перекрёст/i,        cls: 'ai-section-cross',    icon: '🔗', tip: 'Перекрёстный анализ между несколькими отчётами' },
+    { re: /тренд|динамик/i,               cls: 'ai-section-trend',    icon: '📉', tip: 'Динамика показателей в сравнении с прошлыми снимками' },
   ];
 
   function classifySections(container) {
     container.querySelectorAll('h2').forEach((h) => {
       const txt = h.textContent || '';
-      for (const { re, cls, icon } of SECTION_MAP) {
+      for (const { re, cls, icon, tip } of SECTION_MAP) {
         if (re.test(txt)) {
           h.classList.add(cls);
           if (!h.textContent.startsWith(icon)) {
-            h.innerHTML = '<span aria-hidden="true">' + icon + '</span> ' + h.innerHTML;
+            const iconSpan = '<span aria-hidden="true" class="ai-section-icon"' +
+              (tip ? ' data-tip="' + tip.replace(/"/g, '&quot;') + '"' : '') + '>' + icon + '</span> ';
+            h.innerHTML = iconSpan + h.innerHTML;
           }
           break;
         }
