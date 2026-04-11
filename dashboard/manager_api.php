@@ -19,6 +19,7 @@ try {
         exit;
     }
     $data = ManagerReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
+    ManagerReport::saveCache($data);
     echo json_encode(['ok' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     http_response_code(500);

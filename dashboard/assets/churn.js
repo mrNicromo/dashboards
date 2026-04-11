@@ -1078,9 +1078,14 @@
         headers: { 'X-CSRF-Token': csrfToken() },
       });
       const json = await res.json();
-      if (json.ok && json.data) state.data = json.data;
-      else showError(json.error || 'Ошибка получения данных');
-    } catch(e) { showError(e.message); }
+      if (json.ok && json.data) {
+        state.data = json.data;
+        window.AqToast?.ok('Churn обновлён');
+      } else {
+        showError(json.error || 'Ошибка получения данных');
+        window.AqToast?.err(json.error || 'Ошибка обновления');
+      }
+    } catch(e) { showError(e.message); window.AqToast?.err('Сеть: ' + e.message); }
     finally { state.loading = false; endProgress(); render(); }
   }
 

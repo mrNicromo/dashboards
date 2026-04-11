@@ -7,19 +7,15 @@ header('Cache-Control: no-store');
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/Airtable.php';
 require_once __DIR__ . '/lib/ChurnReport.php';
-require_once __DIR__ . '/lib/ChurnFactReport.php';
+require_once __DIR__ . '/lib/ChurnFactGSheet.php';
 
 // ── CSRF или DASHBOARD_API_SECRET (cron / curl без сессии) ─
 csrf_check_or_api_secret();
 
 $c = dashboard_config();
-if ($c['airtable_pat'] === '') {
-    echo json_encode(['ok' => false, 'error' => 'Не настроен PAT']);
-    exit;
-}
 
-// ── Атомарный lock для churn-fact (H3) ────────────────────
-$factCache = __DIR__ . '/cache/churn-fact-report.json';
+// ── Атомарный lock для churn-fact ─────────────────────────
+$factCache = ChurnFactGSheet::CACHE;
 $lockFile  = $factCache . '.lock';
 
 $lockFp = @fopen($lockFile, 'x');
@@ -41,20 +37,27 @@ if ($lockFp === false) {
     }
 }
 
-// Сбрасываем оба кэша для полного обновления
-foreach ([
-    $factCache,
-    __DIR__ . '/cache/churn-report.json',
-] as $f) {
-    if (is_file($f)) @unlink($f);
-}
+// Сбрасываем кэш Google Sheets
+if (is_file($factCache)) @unlink($factCache);
 
 try {
-    $churnRisk    = ChurnReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
-    $prob3risk    = (float)($churnRisk['prob3mrr']     ?? 0);
-    $prob3riskEnt = (float)($churnRisk['prob3riskEnt'] ?? 0);
-    $prob3riskSmb = (float)($churnRisk['prob3riskSmb'] ?? 0);
-    $data = ChurnFactReport::fetchReport($c['airtable_pat'], $c['airtable_base_id'], $prob3risk, $prob3riskEnt, $prob3riskSmb);
+    // prob=3 риск берём из Airtable (Угроза Churn), если PAT настроен
+    $prob3risk    = 0.0;
+    $prob3riskEnt = 0.0;
+    $prob3riskSmb = 0.0;
+    if ($c['airtable_pat'] !== '' && $c['airtable_base_id'] !== '') {
+        try {
+            $churnRisk    = ChurnReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
+            $prob3risk    = (float)($churnRisk['prob3mrr']     ?? 0);
+            $prob3riskEnt = (float)($churnRisk['prob3riskEnt'] ?? 0);
+            $prob3riskSmb = (float)($churnRisk['prob3riskSmb'] ?? 0);
+        } catch (Throwable $ignored) {
+            // Airtable недоступен — прогноз без prob=3
+        }
+    }
+
+    // Данные о потерях — из Google Sheets (новый источник)
+    $data = ChurnFactGSheet::fetchReport($prob3risk, $prob3riskEnt, $prob3riskSmb);
     echo json_encode(['ok' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     http_response_code(500);

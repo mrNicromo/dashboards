@@ -19,6 +19,7 @@ $vals = [
     'sheets_churn_csv'   => $c['sheets_churn_csv'] ?? '',
     'sheets_ds_csv'      => $c['sheets_ds_csv'] ?? '',
     'ai_auto_snapshot_hours' => $c['ai_auto_snapshot_hours'] ?? '24',
+    'fact_target'            => $c['fact_target'] ?? '',
     'ai_alert_overdue_pct'   => dashboard_env('DASHBOARD_AI_ALERT_OVERDUE_PCT') ?: '',
     'ai_alert_aging91_pct'   => dashboard_env('DASHBOARD_AI_ALERT_AGING90_PCT') ?: '',
     'ai_alert_churn_mrr'     => dashboard_env('DASHBOARD_AI_ALERT_CHURN_MRR') ?: '',
@@ -78,6 +79,10 @@ function esc(string $s): string {
             <label class="st-label" for="airtable_pat">Personal Access Token (PAT)</label>
             <input class="st-input st-input-secret" type="password" id="airtable_pat" name="airtable_pat"
               value="<?= esc($vals['airtable_pat']) ?>" placeholder="patXXX…" autocomplete="off">
+            <div class="st-test-row">
+              <button type="button" class="st-btn-test" data-test="airtable" data-field="airtable_pat">Проверить подключение</button>
+              <span class="st-test-result" id="test-result-airtable"></span>
+            </div>
             <p class="st-hint">Создаётся в airtable.com → Account → Developer Hub. Нужны права read на базу.</p>
           </div>
           <div class="st-field">
@@ -99,6 +104,10 @@ function esc(string $s): string {
             </label>
             <input class="st-input st-input-secret" type="password" id="gemini_api_key" name="gemini_api_key"
               value="<?= esc($vals['gemini_api_key']) ?>" placeholder="AIzaSy…" autocomplete="off">
+            <div class="st-test-row">
+              <button type="button" class="st-btn-test" data-test="gemini" data-field="gemini_api_key">Проверить</button>
+              <span class="st-test-result" id="test-result-gemini"></span>
+            </div>
             <p class="st-hint">Бесплатный уровень: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.</p>
           </div>
           <div class="st-field">
@@ -107,6 +116,10 @@ function esc(string $s): string {
             </label>
             <input class="st-input st-input-secret" type="password" id="groq_api_key" name="groq_api_key"
               value="<?= esc($vals['groq_api_key']) ?>" placeholder="gsk_…" autocomplete="off">
+            <div class="st-test-row">
+              <button type="button" class="st-btn-test" data-test="groq" data-field="groq_api_key">Проверить</button>
+              <span class="st-test-result" id="test-result-groq"></span>
+            </div>
             <p class="st-hint">Бесплатный: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com</a>.</p>
           </div>
           <div class="st-field">
@@ -142,6 +155,18 @@ function esc(string $s): string {
       </section>
 
       <!-- ── Автоматизация ─────────────────────────────────── -->
+      <section class="st-section">
+        <h2 class="st-section-title">Бизнес-параметры</h2>
+        <div class="st-grid">
+          <div class="st-field">
+            <label class="st-label" for="fact_target">Цель по потерям — план на год (₽)</label>
+            <input class="st-input st-input-short" type="number" id="fact_target" name="fact_target"
+              value="<?= esc($vals['fact_target']) ?>" min="0" placeholder="8200000">
+            <p class="st-hint">Отображается на главной как «план». По умолчанию 8 200 000 ₽.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="st-section">
         <h2 class="st-section-title">Автоматизация</h2>
         <div class="st-grid">
@@ -206,6 +231,7 @@ function esc(string $s): string {
   </div>
 
   <script src="assets/aq-theme-boot.js?v=1"></script>
+  <script src="assets/toast.js?v=1" defer></script>
   <script src="assets/settings.js?v=1" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>

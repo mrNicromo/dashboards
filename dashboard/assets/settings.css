@@ -187,3 +187,39 @@
   .st-header h1 { font-size: 1.3rem; }
   .st-input-short { max-width: 100%; }
 }
+
+/* ── Test buttons ──────────────────────────────────────────── */
+.st-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  flex-wrap: wrap;
+}
+.st-btn-test {
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.st-btn-test:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.st-btn-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.st-test-result {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.st-test-ok { color: #34c759; }
+.st-test-err { color: #ff453a; }

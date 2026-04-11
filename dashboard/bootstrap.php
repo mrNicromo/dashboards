@@ -252,6 +252,7 @@ function dashboard_config(): array
     $sheetsChurnCsv = dashboard_config_pick('DASHBOARD_SHEETS_CHURN_CSV', $merged, $builtin, 'sheets_churn_csv');
     $sheetsDsCsv = dashboard_config_pick('DASHBOARD_SHEETS_DS_CSV', $merged, $builtin, 'sheets_ds_csv');
     $aiAutoSnapshotHours = dashboard_config_pick('DASHBOARD_AI_AUTO_SNAPSHOT_HOURS', $merged, $builtin, 'ai_auto_snapshot_hours');
+    $factTarget = dashboard_config_pick('DASHBOARD_FACT_TARGET', $merged, $builtin, 'fact_target');
 
     $authEnabled = dashboard_env('DASHBOARD_AUTH_ENABLED');
     if ($authEnabled === '') {
@@ -285,6 +286,7 @@ function dashboard_config(): array
         'sheets_churn_csv' => trim((string) $sheetsChurnCsv),
         'sheets_ds_csv' => trim((string) $sheetsDsCsv),
         'ai_auto_snapshot_hours' => trim((string) $aiAutoSnapshotHours) ?: '24',
+        'fact_target' => trim((string) $factTarget),
     ];
 }
 

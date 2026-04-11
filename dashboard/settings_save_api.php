@@ -32,6 +32,7 @@ $allowed = [
     'auth_password'           => 'DASHBOARD_AUTH_PASSWORD',
     'sheets_churn_csv'        => 'DASHBOARD_SHEETS_CHURN_CSV',
     'sheets_ds_csv'           => 'DASHBOARD_SHEETS_DS_CSV',
+    'fact_target'             => 'DASHBOARD_FACT_TARGET',
     'ai_auto_snapshot_hours'  => 'DASHBOARD_AI_AUTO_SNAPSHOT_HOURS',
     'ai_alert_overdue_pct'    => 'DASHBOARD_AI_ALERT_OVERDUE_PCT',
     'ai_alert_aging91_pct'    => 'DASHBOARD_AI_ALERT_AGING90_PCT',

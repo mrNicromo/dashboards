@@ -58,6 +58,10 @@ csrf_check();
 $bodyIn = json_decode(file_get_contents('php://input') ?: '{}', true);
 $customQuestion = is_array($bodyIn) ? trim((string) ($bodyIn['customQuestion'] ?? '')) : '';
 $skipRefresh = is_array($bodyIn) && !empty($bodyIn['skipRefresh']);
+$analysisMode = is_array($bodyIn) ? trim((string) ($bodyIn['mode'] ?? 'all')) : 'all';
+if (!in_array($analysisMode, ['all', 'dz', 'churn', 'losses'], true)) {
+    $analysisMode = 'all';
+}
 
 // ── Ключи ─────────────────────────────────────────────────────
 $c = dashboard_config();
@@ -104,11 +108,11 @@ if (!$skipRefresh) {
 
 // ── Промпт ────────────────────────────────────────────────────
 $baseId = (string) ($c['airtable_base_id'] ?? '');
-// Полный контекст для Gemini/Claude (большой лимит), урезанный для Groq (free-tier: ~6k TPM, hard limit на тело запроса)
-$ctxJson     = AiInsightsContext::promptContext($dir, $baseId);          // ~280 KB
-$ctxJsonGroq = AiInsightsContext::promptContext($dir, $baseId, 18000);   // ~18 KB ≈ 4.5k tokens
+// Полный контекст для Gemini/Claude (большой лимит), урезанный для Groq
+// Groq free-tier: hard limit ~14-16 KB тела запроса. Считаем доступный объём динамически.
+$ctxJson = AiInsightsContext::promptContext($dir, $baseId);
 
-$system = <<<'PROMPT'
+$systemBase = <<<'PROMPT'
 Ты — аналитик дебиторки и оттока B2B SaaS. Работаешь строго по JSON-снимку.
 
 Правила:
@@ -117,24 +121,72 @@ $system = <<<'PROMPT'
 - Все суммы, проценты, имена клиентов — только из источника.
 - При наличии истории снимков — строй тренд; при её отсутствии — не упоминай.
 
-Структура ответа (Markdown; включай раздел только если есть факты):
-## Ключевые показатели — KPI, суммы, доли из JSON
-## Зоны риска — конкретные клиенты, сроки, суммы просрочки
-## Приоритеты — 3–5 чётких действий с обоснованием из данных
-## Тренд — только при наличии истории
-
 Язык: русский. Формат: Markdown без pipe-таблиц.
 PROMPT;
 
-$historyBlock = AiInsightsHistory::buildTrendPromptSection(12);
+$systemMode = match ($analysisMode) {
+    'dz' => <<<'MODE'
+
+РЕЖИМ: Дебиторка (глубокий анализ ДЗ)
+Фокус только на блоке дебиторки. Игнорируй churn и потери.
+Структура ответа:
+## Общая ДЗ — итоговые суммы, динамика по корзинам (0-30, 31-60, 61-90, 91+)
+## Критичные должники — топ-5 по сумме/сроку, конкретные суммы
+## Менеджеры — у кого самая большая проблема, что делать
+## Рекомендации — 3–5 конкретных действий с дедлайном (формат: «до ДД.ММ — действие — ответственный»)
+MODE,
+    'churn' => <<<'MODE'
+
+РЕЖИМ: Churn и отток (анализ рисков MRR)
+Фокус только на блоке churn-риска. Игнорируй ДЗ и потери.
+Структура ответа:
+## MRR под угрозой — суммы, сегменты, вероятности
+## Топ-риски — конкретные клиенты/сегменты с MRR и статусом
+## Динамика — сравни с историей если доступна
+## Рекомендации — 3–5 действий для удержания с дедлайном (формат: «до ДД.ММ — действие — ответственный»)
+MODE,
+    'losses' => <<<'MODE'
+
+РЕЖИМ: Фактические потери (Churn + Downsell)
+Фокус только на блоке фактических потерь. Игнорируй ДЗ и churn-риск.
+Структура ответа:
+## Потери YTD — итоговые суммы churn + downsell, разбивка по месяцам
+## По продуктам — где концентрируются потери
+## Сегменты — ENT vs SMB динамика
+## Рекомендации — 3–5 действий по снижению оттока с дедлайном (формат: «до ДД.ММ — действие — ответственный»)
+MODE,
+    default => <<<'MODE'
+
+Структура ответа (включай раздел только если есть факты):
+## Ключевые показатели — KPI, суммы, доли из JSON
+## Зоны риска — конкретные клиенты, сроки, суммы просрочки
+## Рекомендации — 3–5 чётких действий с дедлайном (формат: «до ДД.ММ — действие — ответственный»)
+## Тренд — только при наличии истории
+MODE,
+};
+
+$system = $systemBase . $systemMode;
+
+$historyBlock     = AiInsightsHistory::buildTrendPromptSection(12);
+$historyBlockGroq = AiInsightsHistory::buildTrendPromptSection(3);
 $customBlock  = $customQuestion !== '' ? "\n\nВопрос: {$customQuestion}" : '';
+
+// Groq: динамически считаем лимит контекста чтобы не превысить ~13 KB тела запроса
+$groqBodyBudget  = 13000; // байт — безопасный лимит для Groq (с запасом от 14-16 KB hard limit)
+$groqFixedSize   = strlen($system)                                    // system prompt
+                 + strlen($customBlock)                               // custom question
+                 + strlen($historyBlockGroq)                          // история
+                 + 300;                                               // JSON-обёртка, заголовки
+$groqCtxLimit    = max(4000, $groqBodyBudget - $groqFixedSize);
+$ctxJsonGroq     = AiInsightsContext::promptContext($dir, $baseId, $groqCtxLimit);
+
 $user     = ($customBlock !== '' ? "Приоритетный вопрос: {$customQuestion}\n\n" : '')
           . "JSON-снимок:\n```json\n{$ctxJson}\n```"
           . ($historyBlock !== '' ? "\n\nИстория (тренд):\n{$historyBlock}" : '')
           . $customBlock;
 $userGroq = ($customBlock !== '' ? "Приоритетный вопрос: {$customQuestion}\n\n" : '')
           . "JSON-снимок:\n```json\n{$ctxJsonGroq}\n```"
-          . "\n\nИстория (тренд):\n" . AiInsightsHistory::buildTrendPromptSection(5)
+          . ($historyBlockGroq !== '' ? "\n\nИстория (тренд):\n{$historyBlockGroq}" : '')
           . $customBlock;
 
 // ── Стриминг от провайдера ────────────────────────────────────

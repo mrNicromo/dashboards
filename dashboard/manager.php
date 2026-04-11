@@ -13,18 +13,13 @@ $bootstrapJson = '';
 $errorMsg      = '';
 $hasPat        = $c['airtable_pat'] !== '';
 
+// Cache-first: используем кэш при загрузке страницы, JS сделает async-обновление
 if ($hasPat) {
-    try {
-        $report        = ManagerReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
-        $bootstrapJson = json_encode($report, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-        if ($bootstrapJson === false) {
-            $errorMsg = 'Ошибка кодирования JSON: ' . json_last_error_msg();
-            $hasPat   = false;
-        }
-    } catch (Throwable $e) {
-        $errorMsg = $e->getMessage();
-        $hasPat   = false;
+    $cached = ManagerReport::getCached();
+    if ($cached !== null) {
+        $bootstrapJson = json_encode($cached, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
     }
+    // Если кэш пустой — страница откроется пустой, JS запросит свежие данные через manager_api.php
 }
 
 // Churn-данные из кэша (не делаем живых запросов — только кэш)
@@ -67,6 +62,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="churn-bootstrap"><?= $churnJson ?></script>
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
+  <script src="assets/toast.js?v=1" defer></script>
   <script src="assets/manager.js?v=8" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>

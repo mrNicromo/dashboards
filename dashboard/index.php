@@ -31,7 +31,7 @@ $churnUpdated = $churn['updatedAt'] ?? '';
 $factChurn   = (float)($fact['churnYtd']    ?? 0);
 $factDs      = (float)($fact['downsellYtd'] ?? 0);
 $factTotal   = (float)($fact['totalYtd']    ?? 0);
-$factTarget  = (float)($fact['targetTotal'] ?? 8_200_000);
+$factTarget  = (float)($fact['targetTotal'] ?? ($c['fact_target'] !== '' ? (float)$c['fact_target'] : 8_200_000));
 $factUpdated = $fact['updatedAt'] ?? '';
 $factDevPct  = $factTarget > 0 ? ($factTotal / $factTarget * 100) : 0;
 
