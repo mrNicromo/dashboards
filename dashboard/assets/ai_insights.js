@@ -1017,11 +1017,13 @@
                   '<span class="ai-stream-cursor">▌</span>';
               }
             } else if (currentEvent === 'error') {
-              st.textContent = data.error || 'Ошибка стриминга';
+              const errMsg = data.error || 'Ошибка стриминга';
+              st.textContent = errMsg;
               st.classList.add('ai-status-err');
+              window.AqToast?.err(errMsg);
               if (out) {
                 out.classList.add('ai-markdown-empty');
-                out.innerHTML = '<p class="ai-output-placeholder">' + esc(data.error || '') + '</p>';
+                out.innerHTML = '<p class="ai-output-placeholder">' + esc(errMsg) + '</p>';
               }
               done = true;
               break;
@@ -1032,6 +1034,7 @@
               if (out) {
                 renderMarkdown(streamText);
               }
+              window.AqToast?.ok('Анализ готов · ' + (data.provider || ''));
               applyNumberWarnings(data.numberWarnings || []);
               persistLastAnalysis(streamText, {
                 promptVersion: data.promptVersion,

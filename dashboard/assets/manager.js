@@ -88,6 +88,51 @@
 
   const saveExcluded = () => localStorage.setItem(LS_KEY, JSON.stringify([...state.excluded]));
 
+  // ─── URL-персистенция фильтров ────────────────────────────
+  function syncUrl() {
+    const p = new URLSearchParams();
+    if (state.mainTab && state.mainTab !== 'dz') p.set('tab', state.mainTab);
+    if (state.search) p.set('q', state.search);
+    if (state.detailFilters.managers.size === 1) p.set('mgr', [...state.detailFilters.managers][0]);
+    if (state.detailFilters.group)    p.set('grp',  state.detailFilters.group);
+    if (state.detailFilters.client)   p.set('cli',  state.detailFilters.client);
+    if (state.detailFilters.direction)p.set('dir',  state.detailFilters.direction);
+    if (state.detailFilters.status)   p.set('st',   state.detailFilters.status);
+    const qs = p.toString();
+    const newUrl = location.pathname + (qs ? '?' + qs : '');
+    if (location.href !== newUrl) {
+      history.replaceState(null, '', newUrl);
+    }
+  }
+
+  // ─── Индикатор свежести данных ───────────────────────────
+  function fmtAge(ts) {
+    if (!ts) return '';
+    const sec = Math.floor((Date.now() / 1000) - ts);
+    if (sec < 60)  return 'только что';
+    if (sec < 3600) return Math.floor(sec / 60) + ' мин назад';
+    if (sec < 86400) return Math.floor(sec / 3600) + ' ч назад';
+    return Math.floor(sec / 86400) + ' дн назад';
+  }
+
+  function renderDataAgeBadge() {
+    let badge = document.getElementById('aq-data-age');
+    const ts = state.data?._ts;
+    if (!ts) { if (badge) badge.hidden = true; return; }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.id = 'aq-data-age';
+      badge.className = 'aq-data-age';
+      const header = document.querySelector('.mgr-topbar, .mgr-header, h1');
+      if (header) header.after(badge);
+      else document.body.prepend(badge);
+    }
+    const stale = state.data?._stale;
+    badge.textContent = (stale ? '⚠ Кэш устарел · ' : '✓ Данные · ') + fmtAge(ts);
+    badge.className = 'aq-data-age' + (stale ? ' aq-data-age-stale' : '');
+    badge.hidden = false;
+  }
+
   // ─── Комментарии к клиентам (localStorage) ────────────────
   const COMMENTS_KEY = 'aq_comments_v1';
   const loadComments = () => { try { return JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}'); } catch { return {}; } };
@@ -133,6 +178,8 @@
   function render() {
     const app = document.getElementById('app');
     if (!app) return;
+    syncUrl();
+    renderDataAgeBadge();
     if (!state.data) {
       app.innerHTML = `<div class="mgr-wrap"><div class="mgr-loading">
         <div class="mgr-spinner"></div><div>Загружаем данные из Airtable…</div>
@@ -2104,13 +2151,21 @@
     if (state.loading) return;
     state.loading = true;
     render();
+    const toast = window.AqToast;
     try {
       const res  = await fetch('manager_api.php', { cache: 'no-store' });
       const json = await res.json();
-      if (json.ok && json.data) state.data = json.data;
-      else showError(json.error || 'Ошибка получения данных');
+      if (json.ok && json.data) {
+        state.data = json.data;
+        toast?.ok('Данные обновлены из Airtable');
+      } else {
+        const msg = json.error || 'Ошибка получения данных';
+        showError(msg);
+        toast?.err(msg);
+      }
     } catch (e) {
       showError(e.message);
+      toast?.err('Сеть: ' + e.message);
     } finally {
       state.loading = false;
       render();
@@ -2162,6 +2217,13 @@
     // URL ?tab=dz|churn|fact — начальная вкладка
     const urlTab = urlParams.get('tab');
     if (urlTab && ['dz', 'churn', 'fact'].includes(urlTab)) state.mainTab = urlTab;
+
+    // Остальные фильтры из URL
+    const urlQ   = urlParams.get('q');   if (urlQ)   state.search = urlQ;
+    const urlGrp = urlParams.get('grp'); if (urlGrp) state.detailFilters.group = urlGrp;
+    const urlCli = urlParams.get('cli'); if (urlCli) state.detailFilters.client = urlCli;
+    const urlDir = urlParams.get('dir'); if (urlDir) state.detailFilters.direction = urlDir;
+    const urlSt  = urlParams.get('st');  if (urlSt)  state.detailFilters.status = urlSt;
 
     // ДЗ данные
     const el = document.getElementById('manager-bootstrap');

@@ -636,3 +636,72 @@ body {
 @media (max-width: 680px) {
   .sk-kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Toast-уведомления (AqToast) ─────────────────────────── */
+#aq-toast-root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.aq-toast {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  max-width: 340px;
+  word-break: break-word;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+  border: 1px solid transparent;
+}
+.aq-toast-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+.aq-toast-ok {
+  background: rgba(52,199,89,.15);
+  border-color: rgba(52,199,89,.4);
+  color: #34c759;
+}
+.aq-toast-err {
+  background: rgba(255,69,58,.15);
+  border-color: rgba(255,69,58,.4);
+  color: #ff453a;
+}
+.aq-toast-info {
+  background: rgba(10,132,255,.12);
+  border-color: rgba(10,132,255,.3);
+  color: var(--accent);
+}
+@media (max-width: 480px) {
+  #aq-toast-root { bottom: 16px; right: 12px; left: 12px; }
+  .aq-toast { max-width: 100%; }
+}
+
+/* ── Бейдж свежести данных ───────────────────────────────── */
+.aq-data-age {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  margin: 0 0 12px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.aq-data-age-stale {
+  color: #f5a623;
+  border-color: rgba(245,166,35,0.4);
+}

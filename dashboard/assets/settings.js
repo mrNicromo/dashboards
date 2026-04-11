@@ -83,6 +83,7 @@
           status.className = 'st-save-status st-save-ok';
         }
         showAlert('Настройки сохранены в .env.local. Изменения вступят в силу при следующем запросе.', 'success');
+        window.AqToast?.ok('Настройки сохранены');
       } else {
         const msg = j.error || 'Ошибка сохранения';
         if (status) {
@@ -90,6 +91,7 @@
           status.className = 'st-save-status st-save-err';
         }
         showAlert(msg, 'error');
+        window.AqToast?.err(msg);
       }
     } catch (err) {
       const msg = 'Сеть или сервер: ' + String(err && err.message ? err.message : err);
@@ -98,8 +100,45 @@
         status.className = 'st-save-status st-save-err';
       }
       showAlert(msg, 'error');
+      window.AqToast?.err(msg);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = 'Сохранить настройки'; }
+    }
+  }
+
+  async function handleTest(btn) {
+    const type    = btn.getAttribute('data-test') || '';
+    const fieldId = btn.getAttribute('data-field') || '';
+    const resultEl = document.getElementById('test-result-' + type);
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // Read current value from field (may be unsaved)
+    const fieldEl = document.getElementById(fieldId);
+    const key = fieldEl ? fieldEl.value.trim() : '';
+
+    btn.disabled = true;
+    btn.textContent = 'Проверяем…';
+    if (resultEl) { resultEl.textContent = ''; resultEl.className = 'st-test-result'; }
+
+    try {
+      const r = await fetch('settings_test_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ type, key }),
+      });
+      const j = await r.json();
+      if (resultEl) {
+        resultEl.textContent = (j.ok ? '✓ ' : '✗ ') + (j.msg || '');
+        resultEl.className = 'st-test-result ' + (j.ok ? 'st-test-ok' : 'st-test-err');
+      }
+    } catch (e) {
+      if (resultEl) {
+        resultEl.textContent = '✗ Сеть: ' + String(e?.message || e);
+        resultEl.className = 'st-test-result st-test-err';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Проверить' + (type === 'airtable' ? ' подключение' : '');
     }
   }
 
@@ -108,6 +147,9 @@
     addToggleButtons();
     const form = document.getElementById('st-form');
     if (form) form.addEventListener('submit', handleSubmit);
+    document.querySelectorAll('.st-btn-test').forEach(btn => {
+      btn.addEventListener('click', () => handleTest(btn));
+    });
   }
 
   if (document.readyState === 'loading') {

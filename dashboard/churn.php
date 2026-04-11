@@ -52,6 +52,7 @@ if ($hasPat) {
     </div>
   </div>
   <script src="assets/utils.js?v=1" defer></script>
+  <script src="assets/toast.js?v=1" defer></script>
   <script src="assets/churn.js?v=7" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>

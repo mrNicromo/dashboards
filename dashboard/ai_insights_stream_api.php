@@ -108,9 +108,9 @@ if (!$skipRefresh) {
 
 // ── Промпт ────────────────────────────────────────────────────
 $baseId = (string) ($c['airtable_base_id'] ?? '');
-// Полный контекст для Gemini/Claude (большой лимит), урезанный для Groq (free-tier: ~6k TPM, hard limit на тело запроса)
-$ctxJson     = AiInsightsContext::promptContext($dir, $baseId);          // ~280 KB
-$ctxJsonGroq = AiInsightsContext::promptContext($dir, $baseId, 18000);   // ~18 KB ≈ 4.5k tokens
+// Полный контекст для Gemini/Claude (большой лимит), урезанный для Groq
+// Groq free-tier: hard limit ~14-16 KB тела запроса. Считаем доступный объём динамически.
+$ctxJson = AiInsightsContext::promptContext($dir, $baseId);
 
 $systemBase = <<<'PROMPT'
 Ты — аналитик дебиторки и оттока B2B SaaS. Работаешь строго по JSON-снимку.
@@ -167,15 +167,26 @@ MODE,
 
 $system = $systemBase . $systemMode;
 
-$historyBlock = AiInsightsHistory::buildTrendPromptSection(12);
+$historyBlock     = AiInsightsHistory::buildTrendPromptSection(12);
+$historyBlockGroq = AiInsightsHistory::buildTrendPromptSection(3);
 $customBlock  = $customQuestion !== '' ? "\n\nВопрос: {$customQuestion}" : '';
+
+// Groq: динамически считаем лимит контекста чтобы не превысить ~13 KB тела запроса
+$groqBodyBudget  = 13000; // байт — безопасный лимит для Groq (с запасом от 14-16 KB hard limit)
+$groqFixedSize   = strlen($system)                                    // system prompt
+                 + strlen($customBlock)                               // custom question
+                 + strlen($historyBlockGroq)                          // история
+                 + 300;                                               // JSON-обёртка, заголовки
+$groqCtxLimit    = max(4000, $groqBodyBudget - $groqFixedSize);
+$ctxJsonGroq     = AiInsightsContext::promptContext($dir, $baseId, $groqCtxLimit);
+
 $user     = ($customBlock !== '' ? "Приоритетный вопрос: {$customQuestion}\n\n" : '')
           . "JSON-снимок:\n```json\n{$ctxJson}\n```"
           . ($historyBlock !== '' ? "\n\nИстория (тренд):\n{$historyBlock}" : '')
           . $customBlock;
 $userGroq = ($customBlock !== '' ? "Приоритетный вопрос: {$customQuestion}\n\n" : '')
           . "JSON-снимок:\n```json\n{$ctxJsonGroq}\n```"
-          . "\n\nИстория (тренд):\n" . AiInsightsHistory::buildTrendPromptSection(5)
+          . ($historyBlockGroq !== '' ? "\n\nИстория (тренд):\n{$historyBlockGroq}" : '')
           . $customBlock;
 
 // ── Стриминг от провайдера ────────────────────────────────────

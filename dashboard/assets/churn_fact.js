@@ -1113,10 +1113,16 @@
         headers: { 'X-CSRF-Token': csrfToken() },
       });
       const json = await res.json();
-      if (json.ok && json.data) { state.data = json.data; state.loadedAt = Date.now(); }
-      else showError(json.error || 'Ошибка получения данных');
+      if (json.ok && json.data) {
+        state.data = json.data; state.loadedAt = Date.now();
+        window.AqToast?.ok('Потери обновлены');
+      } else {
+        showError(json.error || 'Ошибка получения данных');
+        window.AqToast?.err(json.error || 'Ошибка обновления');
+      }
     } catch (e) {
       showError(e.message);
+      window.AqToast?.err('Сеть: ' + e.message);
     } finally {
       state.loading = false;
       endProgress();

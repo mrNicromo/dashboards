@@ -62,6 +62,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="churn-bootstrap"><?= $churnJson ?></script>
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
+  <script src="assets/toast.js?v=1" defer></script>
   <script src="assets/manager.js?v=8" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>
