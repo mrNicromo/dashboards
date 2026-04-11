@@ -2,21 +2,15 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/lib/Airtable.php';
-require_once __DIR__ . '/lib/ChurnReport.php';
-require_once __DIR__ . '/lib/ChurnFactReport.php';
+require_once __DIR__ . '/lib/ChurnFactGSheet.php';
 
-$c             = dashboard_config();
-$hasPat        = $c['airtable_pat'] !== '';
 $bootstrapJson = '';
 
 // Используем только кэш — страница загружается мгновенно.
 // Если кэша нет, JS сам сделает async-запрос к churn_fact_api.php.
-if ($hasPat) {
-    $cached = ChurnFactReport::getCached();
-    if ($cached !== null) {
-        $bootstrapJson = json_encode($cached, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
-    }
+$cached = ChurnFactGSheet::getCached();
+if ($cached !== null) {
+    $bootstrapJson = json_encode($cached, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
 }
 ?><!DOCTYPE html>
 <html lang="ru" id="html-root">
@@ -26,17 +20,11 @@ if ($hasPat) {
   <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Потери выручки — AnyQuery</title>
-  <link rel="stylesheet" href="assets/dashboard.css?v=16">
+  <link rel="stylesheet" href="assets/dashboard.css?v=17">
   <link rel="stylesheet" href="assets/churn_fact.css?v=11">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
-<?php if (!$hasPat): ?>
-  <div class="setup">
-    <h1>Потери выручки</h1>
-    <p>Нужен токен Airtable. Проверьте <code>config.php</code>.</p>
-  </div>
-<?php else: ?>
   <script type="application/json" id="fact-bootstrap"><?= $bootstrapJson ?></script>
   <div id="app">
     <div class="sk-page" id="app-skeleton">
@@ -55,8 +43,7 @@ if ($hasPat) {
   </div>
   <script src="assets/utils.js?v=1" defer></script>
   <script src="assets/toast.js?v=1" defer></script>
-  <script src="assets/churn_fact.js?v=16" defer></script>
+  <script src="assets/churn_fact.js?v=17" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
-<?php endif; ?>
 </body>
 </html>

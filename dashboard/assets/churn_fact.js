@@ -186,7 +186,7 @@
       app.innerHTML = `
         <div class="cf-loading">
           <div class="ch-spinner-dots"><span></span><span></span><span></span></div>
-          <div class="ch-loading-title">Загружаем данные из Airtable…</div>
+          <div class="ch-loading-title">Загружаем данные из Google Sheets…</div>
           <div class="ch-loading-sub">Обычно 5–15 секунд при первом запуске</div>
         </div>`;
       return;
@@ -197,7 +197,7 @@
     const filteredMonths = filterMonths(d.byMonth);
     const dFiltered = { ...d, byMonth: filteredMonths };
     const staleBanner = (d._stale || d._backup)
-      ? `<div class="cf-stale-banner">⚠ Airtable недоступен — резервные данные от ${esc(d.updatedAt || '?')}</div>`
+      ? `<div class="cf-stale-banner">⚠ Google Sheets недоступен — резервные данные от ${esc(d.updatedAt || '?')}</div>`
       : '';
     app.innerHTML = `
       ${buildTopbar(d)}
@@ -205,9 +205,10 @@
       <div class="cf-wrap">
         ${buildPeriodFilter(d)}
         ${buildKpis(d, filteredMonths)}
+        ${buildQuarterBlock(d)}
         ${buildForecastBlock(d)}
         ${buildWaterfallChart(d)}
-        ${buildMonthlyChart(dFiltered)}
+        ${buildMonthlyChart(d)}
         ${buildSegmentChart(dFiltered)}
         ${buildMidRow(d)}
         ${buildTables(d)}
@@ -352,27 +353,74 @@
     const prevTotals = prevInfo?.totals;
 
     return `
-      <div class="cf-section-label">📊 Факт ${periodLabel} ${freshBadge} ${tip('YTD (Year-to-Date) = накопленные потери с начала года по текущий месяц.\nВключает: Churn (уход клиентов) + DownSell (постоянное снижение MRR).\nОбновляется каждые 15 минут из Airtable + Google Sheets.')}</div>
+      <div class="cf-section-label">📊 Факт ${periodLabel} ${freshBadge} ${tip('YTD (Year-to-Date) = накопленные потери с начала года по текущий месяц.\nВключает: Churn (уход клиентов) + DownSell (постоянное снижение MRR).\nИсточник: Google Sheets, лист «Потери Q1 2026».')}</div>
       <div class="cf-kpis">
-        ${kpi('🔴',`Churn ${periodLabel}`,       fmtR(churnVal),  `${pct(churnVal, totalVal)} от общих потерь`, 'kpi-danger', 'Сумма MRR клиентов, ушедших в текущем году.\nИсточник: Airtable (6 вьюшек — AQ, AC, RECS, AnyImages, AnyReviews, Rees46)', isFiltered ? periodDelta(churnVal, prevTotals?.churn) : deltaHtml(d.churnYtd, snap?.churnYtd))}
-        ${kpi('🟠',`DownSell ${periodLabel}`,    fmtR(dsVal),     `${pct(dsVal, totalVal)} от общих потерь`, 'kpi-warn', 'Снижение MRR по действующим клиентам (постоянные скидки).\nИсточник: Google Sheets, вкладка UpSale/DownSell.\nФильтр: Тип = Постоянная, Изменение > 0', isFiltered ? periodDelta(dsVal, prevTotals?.downsell) : deltaHtml(d.downsellYtd, snap?.downsellYtd))}
+        ${kpi('🔴',`Churn ${periodLabel}`,       fmtR(churnVal),  `${pct(churnVal, totalVal)} от общих потерь`, 'kpi-danger', 'Сумма MRR клиентов, ушедших в текущем году.\nИсточник: Google Sheets, лист «Потери Q1 2026», строки Status = CHURN.', isFiltered ? periodDelta(churnVal, prevTotals?.churn) : deltaHtml(d.churnYtd, snap?.churnYtd))}
+        ${kpi('🟠',`DownSell ${periodLabel}`,    fmtR(dsVal),     `${pct(dsVal, totalVal)} от общих потерь`, 'kpi-warn', 'Снижение MRR по действующим клиентам (постоянные скидки).\nИсточник: Google Sheets, лист «Потери Q1 2026», строки Status = Downsell.', isFiltered ? periodDelta(dsVal, prevTotals?.downsell) : deltaHtml(d.downsellYtd, snap?.downsellYtd))}
         ${kpi('💸',`Total потери ${periodLabel}`, fmtR(totalVal),  isFiltered ? `за ${filteredMonths.length} мес.` : `Таргет: ${fmtR(d.targetTotal)}`, 'kpi-danger', 'Формула: Churn YTD + DownSell YTD\nВсе потери выручки за период', isFiltered ? periodDelta(totalVal, prevTotals?.total) : deltaHtml(d.totalYtd, snap?.totalYtd))}
         ${!isFiltered ? kpi(devTotal<=0?'✅':'🚨','Отклонение от плана',
           `<span class="${devCls(devTotal)}">${sign(devTotal)}${devTotal.toFixed(1)}%</span>`,
           `${sign(d.totalYtd - d.targetTotal)}${fmtR(d.totalYtd - d.targetTotal)}`,
           devTotal<=0?'kpi-ok':'kpi-danger',
-          'Формула: (Total YTD − Таргет) / Таргет × 100%\nТаргет на год: 8 200 000 ₽\n✅ Ниже нуля = потери меньше плана (хорошо)') : ''}
+          'Формула: (Total YTD − Таргет) / Таргет × 100%\n✅ Ниже нуля = потери меньше плана (хорошо)') : ''}
       </div>
-      <div class="cf-section-label" style="margin-top:8px">Контроль по сегментам ${tip('Разбивка потерь по бизнес-сегментам.\nENT (Enterprise): крупные клиенты, таргет 2 400 000 ₽/год.\nSMB/SME: малый и средний бизнес, таргет 5 800 000 ₽/год.\nСегмент берётся из поля Segment в Airtable.')}</div>
+      <div class="cf-section-label" style="margin-top:8px">Контроль по сегментам ${tip('Разбивка потерь по бизнес-сегментам.\nENT (Enterprise): крупные клиенты.\nSS/SMB/SME-/SME/SME+: малый и средний бизнес.\nСегмент берётся из колонки Segment#2 (S) Google Sheets.')}</div>
       <div class="cf-kpis cf-kpis-seg">
-        ${kpi('📦','SMB/SME — потери YTD',   fmtR(d.smbYtd), `Таргет: ${fmtR(d.targetSmb)}`, 'kpi-neutral', 'Потери клиентов сегментов: SS, SMB, SME-, SME, SME+.\nОпределяется по полю Segment в Airtable.\nТаргет: 5 800 000 ₽/год', deltaHtml(d.smbYtd, snap?.smbYtd))}
+        ${kpi('📦','SS/SMB/SME-/SME/SME+ YTD', fmtR(d.smbYtd), `Таргет: ${fmtR(d.targetSmb)}`, 'kpi-neutral', 'Потери клиентов сегментов: SS, SMB, SME-, SME, SME+.\nТаргет: 1 449 999 ₽ × 4 квартала = 5 799 996 ₽/год', deltaHtml(d.smbYtd, snap?.smbYtd))}
         ${kpi(devSmb<=0?'✅':'🚨','SMB/SME отклонение',
           `<span class="${devCls(devSmb)}">${sign(devSmb)}${devSmb.toFixed(1)}%</span>`,
-          `Таргет 5 800 000 ₽`, devSmb<=0?'kpi-ok':'kpi-danger', 'Формула: (SMB YTD − 5 800 000) / 5 800 000 × 100%\n✅ Ниже нуля = потери меньше плана')}
-        ${kpi('🏢','Enterprise — потери YTD', fmtR(d.entYtd), `Таргет: ${fmtR(d.targetEnt)}`, 'kpi-neutral', 'Потери Enterprise клиентов (Segment = ENT в Airtable).\nТаргет: 2 400 000 ₽/год', deltaHtml(d.entYtd, snap?.entYtd))}
+          `Таргет ${fmtR(d.targetSmb)}`, devSmb<=0?'kpi-ok':'kpi-danger', 'Формула: (SMB YTD − Таргет) / Таргет × 100%\n✅ Ниже нуля = потери меньше плана')}
+        ${kpi('🏢','Enterprise — потери YTD', fmtR(d.entYtd), `Таргет: ${fmtR(d.targetEnt)}`, 'kpi-neutral', 'Потери Enterprise клиентов (Segment#2 = ENT).\nТаргет: Q2 1 480 000 + Q3 900 000 = 2 380 000 ₽/год', deltaHtml(d.entYtd, snap?.entYtd))}
         ${kpi(devEnt<=0?'✅':'🚨','ENT отклонение',
           `<span class="${devCls(devEnt)}">${sign(devEnt)}${devEnt.toFixed(1)}%</span>`,
-          `Таргет 2 400 000 ₽`, devEnt<=0?'kpi-ok':'kpi-danger', 'Формула: (ENT YTD − 2 400 000) / 2 400 000 × 100%\n✅ Ниже нуля = потери меньше плана')}
+          `Таргет ${fmtR(d.targetEnt)}`, devEnt<=0?'kpi-ok':'kpi-danger', 'Формула: (ENT YTD − Таргет) / Таргет × 100%\n✅ Ниже нуля = потери меньше плана')}
+      </div>`;
+  }
+
+  // ── Квартальный прогресс (4 строки × 4 чарта) ───────────
+  function buildQuarterBlock(d) {
+    const qt  = d.quarterTargets || {};
+    const bq  = d.byQuarter      || {};
+    const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
+    const LABELS   = { Q1: 'Q1 2026', Q2: 'Q2 2026', Q3: 'Q3 2026', Q4: 'Q4 2026' };
+
+    const gauge = (label, fact, target, color) => {
+      const pctVal = target > 0 ? Math.min(fact / target, 1) : 0;
+      const pctTxt = target > 0 ? (fact / target * 100).toFixed(0) + '%' : '—';
+      const devCls = fact <= target ? 'qg-ok' : 'qg-over';
+      return `
+        <div class="cf-qgauge">
+          <div class="cf-qgauge-label">${esc(label)}</div>
+          <div class="cf-qgauge-val" style="color:${color}">${fmtShort(fact)}</div>
+          <div class="cf-qgauge-track">
+            <div class="cf-qgauge-fill ${devCls}" style="width:${(pctVal*100).toFixed(1)}%;background:${color}"></div>
+          </div>
+          <div class="cf-qgauge-sub">${pctTxt} ${target > 0 ? 'из ' + fmtShort(target) : '(цель не задана)'}</div>
+        </div>`;
+    };
+
+    const rows = QUARTERS.map(q => {
+      const t   = qt[q] || { total: 0, smb: 0, ent: 0 };
+      const f   = bq[q] || { churn: 0, downsell: 0, total: 0, smb: 0, ent: 0 };
+      const isEntTarget = t.ent > 0;
+      return `
+        <div class="cf-quarter-row">
+          <div class="cf-quarter-label">${LABELS[q]}</div>
+          <div class="cf-quarter-gauges">
+            ${gauge('Churn',    f.churn,    t.total, '#FF453A')}
+            ${gauge('DownSell', f.downsell, t.total, '#FF9F0A')}
+            ${gauge('SS/SMB/SME+', f.smb,  t.smb,   '#FF9F0A')}
+            ${gauge('Enterprise',  f.ent,  isEntTarget ? t.ent : 0, '#7B61FF')}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="cf-section" style="margin-top:8px">
+        <div class="cf-section-head">
+          <h2>📆 Квартальные потери vs таргет ${tip('Прогресс потерь по каждому кварталу относительно квартального таргета.\nChurn + DownSell считаются против общего квартального плана.\nENT: Q2 = 1 480 000 ₽ (ЗЯ), Q3 = 900 000 ₽ (Самокат).')}</h2>
+        </div>
+        <div class="cf-quarter-block">${rows}</div>
       </div>`;
   }
 
@@ -409,7 +457,7 @@
           })() : ''}
         </div>
         <div class="cf-forecast-seg-card">
-          <div class="cf-forecast-seg-label">SMB прогноз</div>
+          <div class="cf-forecast-seg-label">SS/SMB/SME-/SME/SME+ прогноз</div>
           <div class="cf-forecast-seg-val">${fmtR(forecastSmb)}</div>
           <div class="cf-forecast-seg-sub">YTD ${fmtR(smbYtd)} + Риск ${fmtR(prob3Smb)}</div>
           ${devSmbPct !== null && targetSmb > 0 ? (() => {
@@ -497,30 +545,32 @@
               <text x="${PAD.l - 5}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--muted)">${fmtShort(maxVal*f)}</text>`;
     }).join('');
 
-    // Plan line: monthly target = targetTotal / 12
-    const monthlyTarget = (d.targetTotal || 0) / 12;
-    const planY = PAD.t + chartH * (1 - Math.min(monthlyTarget / maxVal, 1));
-    const planLine = monthlyTarget > 0 && monthlyTarget <= maxVal ? `
-      <line x1="${PAD.l}" y1="${planY.toFixed(1)}" x2="${PAD.l + chartW}" y2="${planY.toFixed(1)}"
-        stroke="#34C759" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.7"/>
-      <text x="${PAD.l + chartW + 5}" y="${(planY + 2).toFixed(1)}" font-size="8" fill="#34C759" opacity="0.8">план/мес</text>
-      <text x="${PAD.l + chartW + 5}" y="${(planY + 12).toFixed(1)}" font-size="9" fill="#34C759" opacity="1" font-weight="600">${fmtShort(monthlyTarget)}</text>` : '';
+    // Plan lines: individual monthly targets (variable per month from ТЗ)
+    const mTargets = d.monthTargets || {};
+    const planSegments = months.map((m, i) => {
+      const mt  = mTargets[m.month] || 0;
+      if (!mt || mt > maxVal * 1.5) return '';
+      const x   = PAD.l + i * (chartW / months.length);
+      const y   = PAD.t + chartH * (1 - Math.min(mt / maxVal, 1));
+      return `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + barW).toFixed(1)}" y2="${y.toFixed(1)}"
+        stroke="#34C759" stroke-width="1.5" opacity="0.75"/>`;
+    }).join('');
 
     return `
       <div class="cf-section" style="margin-top:16px">
         <div class="cf-section-head">
-          <h2>📅 Динамика потерь по месяцам ${tip('Помесячная динамика Churn + DownSell.\nПунктирная линия = Таргет / 12 месяцев (плановые потери в месяц).\nПрозрачные столбцы = будущие месяцы (данных ещё нет).\nИсточник: Airtable (Churn) + Google Sheets (DownSell).')}</h2>
+          <h2>📅 Динамика потерь по месяцам ${tip('Помесячная динамика Churn + DownSell.\nПунктирная черта = помесячный таргет (разный в зависимости от плановых уходов).\nПрозрачные столбцы = будущие месяцы (данных ещё нет).\nИсточник: Google Sheets, лист «Потери Q1 2026».')}</h2>
         </div>
         <div style="display:flex;gap:16px;padding:6px 16px;font-size:0.75rem;flex-wrap:wrap">
           <span style="color:#FF453A">▌ Churn</span>
           <span style="color:#FF9F0A">▌ DownSell</span>
-          <span style="color:#34C759">╌ План/мес (таргет ÷ 12)</span>
+          <span style="color:#34C759">— Помесячный план</span>
           <span style="color:var(--muted)">Прозрачные = будущие месяцы</span>
         </div>
         <div style="padding:0 12px 12px;overflow-x:auto">
           <svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${W}px">
             ${yLines}
-            ${planLine}
+            ${planSegments}
             ${bars}
           </svg>
         </div>
@@ -551,9 +601,10 @@
     const MONTH_NAMES = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
     const nowMonth = new Date().toISOString().slice(0,7);
 
-    // Monthly targets for plan line
-    const entMonthly = (d.targetEnt || 0) / 12;
-    const smbMonthly = (d.targetSmb || 0) / 12;
+    // Monthly targets for plan lines (use per-month targets from ТЗ or fallback to yearly/12)
+    const mTargetsSeg = d.monthTargets || {};
+    const entMonthly  = (d.targetEnt || 0) / 12;
+    const smbMonthly  = (d.targetSmb || 0) / 12;
 
     const bars = months.map((m, i) => {
       const s        = bySeg[m.month] || { ent: 0, smb: 0 };
@@ -617,11 +668,11 @@
     return `
       <div class="cf-section" style="margin-top:16px">
         <div class="cf-section-head">
-          <h2>🏢 Динамика по сегментам — ENT vs SMB/SME ${tip('Сравнение потерь ENT и SMB/SME по месяцам.\nENT = Enterprise (Segment = ENT в Airtable).\nSMB = все остальные сегменты (SS, SMB, SME-, SME, SME+).\nПунктир = месячный план по каждому сегменту.')}</h2>
+          <h2>🏢 Динамика по сегментам — ENT vs SS/SMB/SME-/SME/SME+ ${tip('Сравнение потерь ENT и SS/SMB/SME-/SME/SME+ по месяцам.\nENT = Enterprise (Segment#2 = ENT).\nSMB = все остальные сегменты (SS, SMB, SME-, SME, SME+).\nПунктир = месячный план по каждому сегменту.')}</h2>
         </div>
         <div style="display:flex;gap:16px;padding:6px 16px;font-size:0.75rem;flex-wrap:wrap">
           <span style="color:#7B61FF">▌ Enterprise</span>
-          <span style="color:#FF9F0A">▌ SMB / SME</span>
+          <span style="color:#FF9F0A">▌ SS/SMB/SME-/SME/SME+</span>
           <span style="color:var(--muted)">Пунктир = месячный план</span>
         </div>
         <div style="padding:0 12px 12px;overflow-x:auto">
@@ -721,7 +772,7 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // ── Средний ряд: по продуктам, CSM, причинам ─────────────
+  // ── Средний ряд: по продуктам, CSM, классификации, замены ─
   function buildMidRow(d) {
     return `
       <div class="cf-mid-row">
@@ -733,8 +784,11 @@
         ${buildDsReasonSection(d)}
       </div>
       <div class="cf-mid-row">
+        ${buildChurnReplacementSection(d)}
+        ${buildDsReplacementSection(d)}
+      </div>
+      <div class="cf-mid-row">
         ${buildDsCsmSection(d)}
-        ${buildVerticalSection(d)}
       </div>`;
   }
 
@@ -791,7 +845,7 @@
 
   function buildReasonSection(d) {
     const reasons = d.byChurnReason || d.byReason || [];
-    if (!reasons.length) return `<div class="cf-card"><div class="cf-card-head"><h3>🔴 Причины Churn ${tip('Классификация причин ухода клиентов.\nИсточник: Airtable, поле «Классификация причины ухода AQ» / «Классификация причины ухода».\nТоп-10 причин по MRR.')}</h3></div><p class="empty-state">Нет данных</p></div>`;
+    if (!reasons.length) return `<div class="cf-card"><div class="cf-card-head"><h3>🔴 Классификация Churn ${tip('Классификация причин ухода клиентов.\nИсточник: Google Sheets, колонка AL (Классификация), строки Status = CHURN.\nТоп-10 причин по MRR.')}</h3></div><p class="empty-state">Нет данных</p></div>`;
     const maxV = Math.max(...reasons.map(r => r.total), 1);
     const rows = reasons.slice(0, 10).map(r => {
       const w = (r.total / maxV * 100).toFixed(1);
@@ -803,9 +857,9 @@
     }).join('');
     return `
       <div class="cf-card">
-        <div class="cf-card-head"><h3>🔴 Причины Churn ${tip('Классификация причин ухода клиентов.\nИсточник: Airtable, поле «Классификация причины ухода AQ» / «Классификация причины ухода».\nТоп-10 причин по MRR.')}</h3></div>
+        <div class="cf-card-head"><h3>🔴 Классификация Churn ${tip('Классификация причин ухода клиентов.\nИсточник: Google Sheets, колонка AL (Классификация), строки Status = CHURN.\nТоп-10 причин по MRR.')}</h3></div>
         <div class="table-wrap"><table class="cf-table">
-          <thead><tr><th>Причина</th><th class="th-num">Churn MRR</th><th></th></tr></thead>
+          <thead><tr><th>Классификация</th><th class="th-num">Churn MRR</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
       </div>`;
@@ -830,7 +884,7 @@
             <b>Заголовки CSV:</b><br><span style="word-break:break-all">${esc(hdrs)}</span>
           </div>
         </details>`;
-      return `<div class="cf-card"><div class="cf-card-head"><h3>Причины DownSell</h3></div><p class="empty-state">Нет данных</p>${debugHtml}</div>`;
+      return `<div class="cf-card"><div class="cf-card-head"><h3>🟠 Классификация DownSell</h3></div><p class="empty-state">Нет данных</p>${debugHtml}</div>`;
     }
     const maxV = Math.max(...reasons.map(r => r.total), 1);
     const rows = reasons.slice(0, 10).map(r => {
@@ -843,9 +897,55 @@
     }).join('');
     return `
       <div class="cf-card">
-        <div class="cf-card-head"><h3>🟠 Причины DownSell ${tip('Классификация причин снижения MRR.\nИсточник: Google Sheets, вкладка UpSale/DownSell,\nколонка «Классификация причины скидки».\nФильтр: тип = Постоянная. Топ-10 по MRR.')}</h3></div>
+        <div class="cf-card-head"><h3>🟠 Классификация DownSell ${tip('Классификация причин снижения MRR.\nИсточник: Google Sheets, колонка AL (Классификация), строки Status = Downsell.\nТоп-10 по MRR.')}</h3></div>
         <div class="table-wrap"><table class="cf-table">
-          <thead><tr><th>Причина</th><th class="th-num">DownSell MRR</th><th></th></tr></thead>
+          <thead><tr><th>Классификация</th><th class="th-num">DownSell MRR</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  // ── Замена Churn (колонка AM + Status=Churn) ─────────────
+  function buildChurnReplacementSection(d) {
+    const items = d.byChurnReplacement || [];
+    if (!items.length) return `<div class="cf-card"><div class="cf-card-head"><h3>🔴 Замена Churn ${tip('Данные о замене продукта при уходе клиента.\nИсточник: Google Sheets, колонка AM (Замена), строки Status = CHURN.')}</h3></div><p class="empty-state">Нет данных</p></div>`;
+    const maxV = Math.max(...items.map(r => r.total), 1);
+    const rows = items.slice(0, 10).map(r => {
+      const w = (r.total / maxV * 100).toFixed(1);
+      return `<tr>
+        <td style="font-size:0.78rem">${esc(r.replacement)}</td>
+        <td class="num strong" style="color:#FF453A">${fmtR(r.total)}</td>
+        <td style="width:80px"><div class="mini-bar"><div class="mini-bar-fill" style="width:${w}%;background:#FF453A"></div></div></td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="cf-card">
+        <div class="cf-card-head"><h3>🔴 Замена Churn ${tip('Данные о замене продукта при уходе клиента.\nИсточник: Google Sheets, колонка AM (Замена), строки Status = CHURN.')}</h3></div>
+        <div class="table-wrap"><table class="cf-table">
+          <thead><tr><th>Замена</th><th class="th-num">MRR</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  // ── Замена DownSell (колонка AM + Status=Downsell) ────────
+  function buildDsReplacementSection(d) {
+    const items = d.byDsReplacement || [];
+    if (!items.length) return `<div class="cf-card"><div class="cf-card-head"><h3>🟠 Замена DownSell ${tip('Данные о замене продукта при снижении MRR.\nИсточник: Google Sheets, колонка AM (Замена), строки Status = Downsell.')}</h3></div><p class="empty-state">Нет данных</p></div>`;
+    const maxV = Math.max(...items.map(r => r.total), 1);
+    const rows = items.slice(0, 10).map(r => {
+      const w = (r.total / maxV * 100).toFixed(1);
+      return `<tr>
+        <td style="font-size:0.78rem">${esc(r.replacement)}</td>
+        <td class="num strong" style="color:#FF9F0A">${fmtR(r.total)}</td>
+        <td style="width:80px"><div class="mini-bar"><div class="mini-bar-fill" style="width:${w}%;background:#FF9F0A"></div></div></td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="cf-card">
+        <div class="cf-card-head"><h3>🟠 Замена DownSell ${tip('Данные о замене продукта при снижении MRR.\nИсточник: Google Sheets, колонка AM (Замена), строки Status = Downsell.')}</h3></div>
+        <div class="table-wrap"><table class="cf-table">
+          <thead><tr><th>Замена</th><th class="th-num">DownSell MRR</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
       </div>`;
@@ -935,32 +1035,44 @@
       </div>`;
   }
 
-  // ── Таблицы (Блок 11) ─────────────────────────────────────
+  // ── Детальные таблицы ─────────────────────────────────────
+  const MONTH_RU_FULL = ['','Январь','Февраль','Март','Апрель','Май','Июнь',
+                         'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  function fmtMonthFull(monthKey) {
+    if (!monthKey) return '—';
+    const [y, m] = monthKey.split('-');
+    const name = MONTH_RU_FULL[parseInt(m)] || monthKey;
+    return `${name} ${y}`;
+  }
+
   function buildTables(d) {
     const isChurn = state.tab === 'churn';
     const churnRows = (d.churnDetail || []).map(r => `<tr>
-      <td class="muted">${esc(r.month)}</td>
+      <td class="muted" style="white-space:nowrap">${esc(fmtMonthFull(r.month))}</td>
       <td class="strong">${esc(r.account)}</td>
       <td><span class="prod-tag">${esc(r.product)}</span></td>
+      <td class="muted">${esc(r.seg2||'—')}</td>
+      <td class="muted">${esc(r.csm||'—')}</td>
       <td class="num" style="color:#FF453A;font-weight:700">${fmtR(r.mrr)}</td>
       <td class="muted">${esc(r.replacement||'—')}</td>
-      <td class="muted" style="font-size:0.75rem">${esc(r.reason||'—')}</td>
-      <td class="muted">${esc(r.vertical||'—')}</td>
+      <td class="muted" style="font-size:0.75rem">${esc(r.class||r.reason||'—')}</td>
     </tr>`).join('');
 
     const dsRows = (d.dsDetail || []).map(r => `<tr>
-      <td class="muted">${esc(r.month)}</td>
+      <td class="muted" style="white-space:nowrap">${esc(fmtMonthFull(r.month))}</td>
       <td class="strong">${esc(r.account)}</td>
       <td class="muted">${esc(r.csm||'—')}</td>
       <td><span class="prod-tag">${esc(r.product)}</span></td>
+      <td class="muted">${esc(r.seg2||'—')}</td>
       <td class="num" style="color:#FF9F0A;font-weight:700">${fmtR(r.mrr)}</td>
-      <td class="muted" style="font-size:0.75rem">${esc(r.reason||'—')}</td>
+      <td class="muted">${esc(r.replacement||'—')}</td>
+      <td class="muted" style="font-size:0.75rem">${esc(r.class||r.reason||'—')}</td>
     </tr>`).join('');
 
     return `
       <div class="cf-section" style="margin-top:16px">
         <div class="cf-section-head">
-          <h2>📋 Детальные таблицы</h2>
+          <h2>📋 Детальная таблица</h2>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div class="cf-tabs">
               <button class="cf-tab ${isChurn?'active':''}" data-tab="churn">
@@ -978,21 +1090,21 @@
 
         ${isChurn ? `
         <div class="table-wrap">
-          <table class="cf-table" style="min-width:750px">
+          <table class="cf-table" style="min-width:900px">
             <thead><tr>
-              <th>Месяц</th><th>Клиент</th><th>Продукт</th>
-              <th>MRR</th><th>Замена</th><th>Причина</th><th>Вертикаль</th>
+              <th>Месяц</th><th>Клиент</th><th>Продукт</th><th>Сегмент</th>
+              <th>CSM</th><th>MRR</th><th>Замена</th><th>Классификация</th>
             </tr></thead>
-            <tbody>${churnRows || '<tr><td colspan="7" class="empty-state">Нет данных по Churn</td></tr>'}</tbody>
+            <tbody>${churnRows || '<tr><td colspan="8" class="empty-state">Нет данных по Churn</td></tr>'}</tbody>
           </table>
         </div>` : `
         <div class="table-wrap">
-          <table class="cf-table" style="min-width:650px">
+          <table class="cf-table" style="min-width:900px">
             <thead><tr>
-              <th>Месяц</th><th>Клиент</th><th>CSM</th>
-              <th>Продукт</th><th>DownSell MRR</th><th>Причина</th>
+              <th>Месяц</th><th>Клиент</th><th>CSM</th><th>Продукт</th>
+              <th>Сегмент</th><th>DownSell MRR</th><th>Замена</th><th>Классификация</th>
             </tr></thead>
-            <tbody>${dsRows || '<tr><td colspan="6" class="empty-state">Нет данных по DownSell</td></tr>'}</tbody>
+            <tbody>${dsRows || '<tr><td colspan="8" class="empty-state">Нет данных по DownSell</td></tr>'}</tbody>
           </table>
         </div>`}
       </div>`;
