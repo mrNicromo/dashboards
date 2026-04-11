@@ -77,8 +77,6 @@
   let lastMarkdownRaw = '';
   /** Текущий стриминг — для отмены */
   let activeStreamController = null;
-  /** Текущий режим анализа */
-  let currentMode = 'all';
 
   function destroyCharts() {
     chartInstances.forEach((c) => {
@@ -99,24 +97,66 @@
   }
 
   function updateHistoryUi(count, hasSeries) {
-    const cnt = document.getElementById('ai-history-count');
+    const badge = document.getElementById('ai-history-count-badge');
     const empty = document.getElementById('ai-history-empty');
     const wrap = document.getElementById('ai-history-canvas-wrap');
-    if (cnt) cnt.textContent = String(count);
+    if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
     if (empty) empty.hidden = hasSeries && count > 0;
     if (wrap) wrap.hidden = !(hasSeries && count > 0);
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  function showToast(msg, type, duration) {
+    if (duration === undefined) duration = 3000;
+    if (!type) type = 'info';
+    let container = document.getElementById('ai-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'ai-toast-container';
+      container.className = 'ai-toast-container';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'ai-toast ai-toast-' + type;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => toast.classList.add('ai-toast-show'));
+    });
+    setTimeout(() => {
+      toast.classList.remove('ai-toast-show');
+      setTimeout(() => { try { toast.remove(); } catch (_) {} }, 300);
+    }, duration);
+  }
+
+  function formatHistoryLabel(raw) {
+    try {
+      // Handle "MM-DDThh:mm", "YYYY-MM-DDThh:mm:ss", ISO strings
+      let s = String(raw || '');
+      // Prepend year if looks like MM-DD...
+      if (/^\d{2}-\d{2}T/.test(s)) s = new Date().getFullYear() + '-' + s;
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return raw;
+      return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (_) { return raw; }
   }
 
   function buildHistoryChart(hc) {
     destroyHistoryChart();
     const canvas = document.getElementById('chart-history');
     if (!canvas || typeof Chart === 'undefined') return;
-    const labels = hc?.labels || [];
-    const count = hc?.count ?? labels.length;
-    const hasSeries = labels.length > 0;
+    const rawLabels = hc?.labels || [];
+    const labels = rawLabels.map(formatHistoryLabel);
+    const count = hc?.count ?? rawLabels.length;
+    const hasSeries = rawLabels.length > 0;
     updateHistoryUi(count, hasSeries);
     if (!hasSeries) return;
 
+    // Update badge
+    const badge = document.getElementById('ai-history-count-badge');
+    if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
+
+    const isSingle = rawLabels.length === 1;
     const pal = chartPalette();
     const grid = cssVar('--border', 'rgba(128,128,128,.2)');
     const text = cssVar('--text', '#e8edf4');
@@ -125,33 +165,37 @@
     const fy = hc.factTotalYtd || [];
     const hasFact = fy.some((v) => v != null && !Number.isNaN(v));
 
+    const pt = isSingle ? 6 : 3;
     const datasets = [
       {
         label: 'ДЗ всего',
         data: hc.dzTotal || [],
         borderColor: pal[0],
         backgroundColor: pal[0] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
       {
         label: 'Churn риск MRR',
         data: hc.churnRisk || [],
         borderColor: pal[1],
         backgroundColor: pal[1] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
       {
         label: 'Prob=3 MRR',
         data: hc.churnProb3 || [],
         borderColor: pal[2],
         backgroundColor: pal[2] + '22',
-        tension: 0.2,
+        tension: isSingle ? 0 : 0.2,
         fill: false,
         yAxisID: 'y',
+        pointRadius: pt,
       },
     ];
     if (hasFact) {
@@ -529,58 +573,31 @@
     setFoot('ai-hint-managers', h.managers);
   }
 
-  function readBootstrapPayload() {
-    const raw = document.getElementById('ai-bootstrap');
-    if (!raw) return {};
-    try {
-      return JSON.parse(raw.textContent || '{}');
-    } catch (_) {
-      return {};
-    }
-  }
-
-  function renderVisualSummary(payload) {
-    buildCharts(payload);
-    applyChartHints(payload);
-    renderKpiStrip(payload);
-  }
-
   function renderKpiStrip(payload) {
     const host = document.getElementById('ai-kpi-strip');
     if (!host) return;
-
     const charts = payload?.charts || {};
+    const historyMeta = payload?.historyMeta || [];
+
+    // Current values
     const agingValues = charts?.dzAging?.values || [];
     const dzTotal = sumSeries(agingValues);
     const aging91 = Number(agingValues[agingValues.length - 1] || 0);
-
     const churnValues = charts?.churnBySegment?.values || [];
     const churnRisk = sumSeries(churnValues);
     const segmentLabels = charts?.churnBySegment?.labels || [];
-    let mainSegment = '—';
-    let mainSegmentValue = 0;
+    let mainSegment = '—'; let mainSegmentValue = 0;
     if (segmentLabels.length && churnValues.length) {
-      const bestIdx = churnValues.reduce(
-        (best, current, idx) => (Number(current) > Number(churnValues[best] || 0) ? idx : best),
-        0
-      );
-      mainSegment = segmentLabels[bestIdx] || '—';
-      mainSegmentValue = Number(churnValues[bestIdx] || 0);
+      const bi = churnValues.reduce((b, c, i) => (Number(c) > Number(churnValues[b] || 0) ? i : b), 0);
+      mainSegment = segmentLabels[bi] || '—'; mainSegmentValue = Number(churnValues[bi] || 0);
     }
-
     const managerLabels = charts?.dzByManager?.labels || [];
     const managerValues = charts?.dzByManager?.values || [];
-    let topManager = '—';
-    let topManagerValue = 0;
+    let topManager = '—'; let topManagerValue = 0;
     if (managerLabels.length && managerValues.length) {
-      const topIdx = managerValues.reduce(
-        (best, current, idx) => (Number(current) > Number(managerValues[best] || 0) ? idx : best),
-        0
-      );
-      topManager = managerLabels[topIdx] || '—';
-      topManagerValue = Number(managerValues[topIdx] || 0);
+      const ti = managerValues.reduce((b, c, i) => (Number(c) > Number(managerValues[b] || 0) ? i : b), 0);
+      topManager = managerLabels[ti] || '—'; topManagerValue = Number(managerValues[ti] || 0);
     }
-
     let factTotal = 0;
     if (charts?.factByProduct?.labels?.length) {
       factTotal = sumSeries(charts.factByProduct.churn) + sumSeries(charts.factByProduct.downsell);
@@ -588,99 +605,81 @@
       factTotal = sumSeries(charts.factMonthly.churn) + sumSeries(charts.factMonthly.downsell);
     }
 
+    // Previous snapshot for delta (index 0 = newest in reversed list)
+    const prev = historyMeta.length > 0 ? (historyMeta[0].m || null) : null;
+
+    function mkDelta(current, prevVal, isBadWhenUp) {
+      if (prevVal == null || !Number.isFinite(current) || current === 0 || !Number.isFinite(Number(prevVal))) return '';
+      const diff = current - Number(prevVal);
+      if (Math.abs(diff) < 1) return '';
+      const pct = Math.round(Math.abs(diff / Number(prevVal)) * 100);
+      if (pct === 0) return '';
+      const up = diff > 0;
+      const bad = isBadWhenUp ? up : !up;
+      const cls = bad ? 'ai-kpi-delta-bad' : 'ai-kpi-delta-ok';
+      return '<span class="ai-kpi-delta ' + cls + '">' + (up ? '↑' : '↓') + pct + '%</span>';
+    }
+
     const cards = [
       {
         label: 'Общая ДЗ',
         value: dzTotal > 0 ? fullMoney(dzTotal) : '—',
-        meta:
-          dzTotal > 0
-            ? 'Критичная корзина 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal)
-            : 'Нет загруженного снимка дебиторки.',
+        delta: mkDelta(dzTotal, prev?.dzTotal, true),
+        meta: dzTotal > 0 ? 'Критичная 91+: ' + fullMoney(aging91) + ' • ' + shareText(aging91, dzTotal) : 'Нет данных по дебиторке.',
         tone: dzTotal > 0 ? 'danger' : 'muted',
-        question: dzTotal > 0
-          ? 'Детально разбери дебиторку: какие клиенты формируют основной долг, корзины просрочки, приоритетные действия.'
-          : null,
+        tip: 'Суммарная дебиторская задолженность по всем клиентам из Airtable (счета). Стрелка показывает изменение от предыдущего снимка.',
       },
       {
         label: 'Корзина 91+',
         value: aging91 > 0 ? fullMoney(aging91) : '—',
-        meta:
-          dzTotal > 0
-            ? 'Доля от всей ДЗ: ' + shareText(aging91, dzTotal)
-            : 'Появится после загрузки данных по ДЗ.',
+        delta: mkDelta(aging91, prev?.dzOverdue, true),
+        meta: dzTotal > 0 ? 'Доля от ДЗ: ' + shareText(aging91, dzTotal) : 'Нет данных.',
         tone: aging91 > 0 ? 'warn' : 'muted',
-        question: aging91 > 0
-          ? 'Сфокусируйся на корзине 91+ и выше: какие клиенты там, суммы, что нужно сделать прямо сейчас.'
-          : null,
+        tip: 'ДЗ старше 91 дня — самая рискованная часть портфеля, где высока вероятность невозврата.',
       },
       {
         label: 'Churn risk MRR',
         value: churnRisk > 0 ? fullMoney(churnRisk) : '—',
-        meta:
-          churnRisk > 0
-            ? 'Крупнейший сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue)
-            : 'Нет содержательных данных по churn-риску.',
+        delta: mkDelta(churnRisk, prev?.churnRisk, true),
+        meta: churnRisk > 0 ? 'Топ сегмент: ' + shortLabel(mainSegment, 18) + ' • ' + fullMoney(mainSegmentValue) : 'Нет данных по churn.',
         tone: churnRisk > 0 ? 'accent' : 'muted',
-        question: churnRisk > 0
-          ? 'Разбери churn-риск: какие клиенты и сегменты под угрозой, суммы MRR, что делать для удержания.'
-          : null,
+        tip: 'MRR клиентов с угрозой оттока по отчёту «Угроза Churn» в Airtable. Требует внимания CSM.',
       },
       {
         label: 'Топ-менеджер по ДЗ',
-        value: topManager !== '—' ? topManager : '—',
-        meta:
-          topManagerValue > 0
-            ? 'Сумма в его портфеле: ' + fullMoney(topManagerValue)
-            : 'Нет менеджерской разбивки в текущем снимке.',
+        value: topManager,
+        delta: '',
+        meta: topManagerValue > 0 ? fullMoney(topManagerValue) + ' в портфеле' : 'Нет менеджерской разбивки.',
         tone: topManagerValue > 0 ? 'ok' : 'muted',
-        question: topManagerValue > 0
-          ? 'Разбери ДЗ по менеджерам: у кого самая большая проблема, конкретные суммы и клиенты, что каждому делать.'
-          : null,
+        tip: 'Менеджер с наибольшей суммарной дебиторкой в портфеле — приоритет для проработки.',
       },
       {
         label: 'Потери YTD',
         value: factTotal > 0 ? fullMoney(factTotal) : '—',
-        meta:
-          factTotal > 0
-            ? 'Собрано из фактического отчёта потерь.'
-            : 'Нет доступного снимка по фактическим потерям.',
+        delta: mkDelta(factTotal, prev?.factTotalYtd, true),
+        meta: factTotal > 0 ? 'Churn + Downsell из фактического отчёта.' : 'Нет данных по потерям.',
         tone: factTotal > 0 ? 'danger' : 'muted',
-        question: factTotal > 0
-          ? 'Детально разбери фактические потери YTD: по месяцам, продуктам, сегментам, тренд.'
-          : null,
+        tip: 'Фактические потери с начала года: churn (уход клиентов) + downsell (снижение тарифа). Источник: отчёт потерь.',
       },
     ];
 
-    host.innerHTML = cards
-      .map(
-        (card) =>
-          '<div class="ai-kpi-card ai-kpi-card-' +
-          esc(card.tone) +
-          (card.question ? ' ai-kpi-card-clickable' : '') +
-          '"' +
-          (card.question ? ' data-ai-kpi-q="' + esc(card.question) + '" title="Спросить AI про ' + esc(card.label) + '"' : '') +
-          '>' +
-          '<div class="ai-kpi-label">' +
-          esc(card.label) +
-          (card.question ? ' <span class="ai-kpi-ask">❓</span>' : '') +
-          '</div>' +
-          '<div class="ai-kpi-value">' +
-          esc(card.value) +
-          '</div>' +
-          '<div class="ai-kpi-meta">' +
-          esc(card.meta) +
-          '</div>' +
-          '</div>'
-      )
-      .join('');
+    host.innerHTML = cards.map((c) =>
+      '<div class="ai-kpi-card ai-kpi-card-' + esc(c.tone) + '"' + (c.tip ? ' data-tip="' + esc(c.tip) + '" data-tip-align="left"' : '') + '>' +
+      '<div class="ai-kpi-label">' + esc(c.label) + '</div>' +
+      '<div class="ai-kpi-value">' + esc(c.value) + (c.delta || '') + '</div>' +
+      '<div class="ai-kpi-meta">' + esc(c.meta) + '</div>' +
+      '</div>'
+    ).join('');
+  }
 
-    // Клик по KPI-карточке → вопрос к AI
-    host.querySelectorAll('[data-ai-kpi-q]').forEach((card) => {
-      card.addEventListener('click', () => {
-        applyPresetQuestion(card.getAttribute('data-ai-kpi-q') || '');
-        document.getElementById('btn-generate-stream')?.focus();
-      });
-    });
+  // Stored for lazy chart rendering on first btn click
+  let _chartsPayload = null;
+  let _chartsBuilt = false;
+
+  function renderVisualSummary(payload) {
+    _chartsPayload = payload;
+    // Charts are lazy — built on first btn-charts-toggle click
+    renderKpiStrip(payload);
   }
 
   function clearOutline() {
@@ -694,38 +693,16 @@
     const output = document.getElementById('ai-output');
     const outline = document.getElementById('ai-outline');
     if (!output || !outline) return;
-
     const headings = Array.from(output.querySelectorAll('h2, h3'));
-    if (!headings.length) {
-      clearOutline();
-      return;
-    }
-
-    headings.forEach((heading, index) => {
-      if (!heading.id) {
-        heading.id = headingId(heading.textContent || '', index + 1);
-      }
-    });
-
+    if (!headings.length) { clearOutline(); return; }
+    headings.forEach((h, i) => { if (!h.id) h.id = headingId(h.textContent || '', i + 1); });
     outline.hidden = false;
-    outline.innerHTML =
-      '<div class="ai-outline-title">Навигация по ответу</div>' +
+    outline.innerHTML = '<div class="ai-outline-title">Навигация по ответу</div>' +
       '<div class="ai-outline-items">' +
-      headings
-        .map((heading) => {
-          const subClass = heading.tagName === 'H3' ? ' ai-outline-link-sub' : '';
-          return (
-            '<a class="ai-outline-link' +
-            subClass +
-            '" href="#' +
-            esc(heading.id) +
-            '">' +
-            esc(heading.textContent || '') +
-            '</a>'
-          );
-        })
-        .join('') +
-      '</div>';
+      headings.map((h) => {
+        const sub = h.tagName === 'H3' ? ' ai-outline-link-sub' : '';
+        return '<a class="ai-outline-link' + sub + '" href="#' + esc(h.id) + '">' + esc(h.textContent || '') + '</a>';
+      }).join('') + '</div>';
   }
 
   async function refreshChartsFromApi(payload) {
@@ -769,7 +746,10 @@
           next = JSON.parse(raw.textContent || '{}');
         } catch (_) {}
       }
-      renderVisualSummary(next);
+      buildCharts(next);
+      applyChartHints(next);
+      _chartsBuilt = true; _chartsPayload = next;
+      showDataTimestamp(Math.floor(Date.now() / 1000));
       if (syncEl) {
         syncEl.textContent = 'Графики обновлены из Airtable.';
         syncEl.hidden = false;
@@ -784,6 +764,23 @@
         syncEl.hidden = false;
       }
     }
+  }
+
+  // ── Data timestamp badge ──────────────────────────────────────────────────
+  function showDataTimestamp(syncedAtSec) {
+    const el = document.getElementById('ai-data-timestamp');
+    if (!el) return;
+    if (!syncedAtSec) { el.hidden = true; return; }
+    const diffMin = Math.round((Date.now() / 1000 - syncedAtSec) / 60);
+    let label;
+    if (diffMin < 1) label = 'данные только что';
+    else if (diffMin < 60) label = 'данные ' + diffMin + ' мин назад';
+    else {
+      const h = Math.floor(diffMin / 60);
+      label = 'данные ' + h + ' ч назад';
+    }
+    el.textContent = label;
+    el.hidden = false;
   }
 
   function syncThemeBtn() {
@@ -875,6 +872,228 @@
     if (tb) tb.hidden = !show;
   }
 
+  // Section name → CSS class + icon
+  const SECTION_MAP = [
+    { re: /сводк|kpi|ключев/i,           cls: 'ai-section-summary',  icon: '📊', tip: 'Сводка ключевых показателей: ДЗ, churn, потери' },
+    { re: /общ.{0,10}картин|обзор/i,     cls: 'ai-section-overview', icon: '🔍', tip: 'Общая картина по данным на момент анализа' },
+    { re: /зон.{0,10}внима|риск|угроз/i, cls: 'ai-section-risks',    icon: '⚠️', tip: 'Зоны риска — требуют немедленного внимания' },
+    { re: /приоритет|действи|план/i,      cls: 'ai-section-actions',  icon: '✅', tip: 'Приоритетные действия — из них строится план и чеклист ниже' },
+    { re: /прогноз|сценар/i,              cls: 'ai-section-forecast', icon: '📈', tip: 'Прогноз и сценарии развития ситуации' },
+    { re: /согласован|перекрёст/i,        cls: 'ai-section-cross',    icon: '🔗', tip: 'Перекрёстный анализ между несколькими отчётами' },
+    { re: /тренд|динамик/i,               cls: 'ai-section-trend',    icon: '📉', tip: 'Динамика показателей в сравнении с прошлыми снимками' },
+  ];
+
+  function classifySections(container) {
+    container.querySelectorAll('h2').forEach((h) => {
+      const txt = h.textContent || '';
+      for (const { re, cls, icon, tip } of SECTION_MAP) {
+        if (re.test(txt)) {
+          h.classList.add(cls);
+          if (!h.textContent.startsWith(icon)) {
+            const iconSpan = '<span aria-hidden="true" class="ai-section-icon"' +
+              (tip ? ' data-tip="' + tip.replace(/"/g, '&quot;') + '"' : '') + '>' + icon + '</span> ';
+            h.innerHTML = iconSpan + h.innerHTML;
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  function highlightNumbers(container) {
+    // Walk text nodes inside <p> and <li>, avoid <code> and <pre>
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        const tag = parent.tagName;
+        if (['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(tag)) return NodeFilter.FILTER_REJECT;
+        // Only inside p, li, td — skip headings
+        let el = parent;
+        while (el && el !== container) {
+          if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName)) return NodeFilter.FILTER_REJECT;
+          el = el.parentElement;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const val = node.nodeValue || '';
+      // Match: optional minus, digits with spaces, optional ₽ — or percentage like 12%
+      if (!/[\d]/.test(val)) return;
+      const frag = document.createDocumentFragment();
+      // Split by monetary amounts (number + ₽) and percentages
+      const parts = val.split(/(\-?[\d\s]{3,}(?:\s?\d{3})*\s*₽|\b\d+(?:[.,]\d+)?%)/g);
+      if (parts.length < 2) return;
+      parts.forEach((part) => {
+        if (/₽$/.test(part.trim())) {
+          const span = document.createElement('span');
+          span.className = 'ai-num-money';
+          span.textContent = part;
+          frag.appendChild(span);
+        } else if (/%$/.test(part.trim())) {
+          const span = document.createElement('span');
+          span.className = 'ai-num-pct-bad'; // default; could be smarter
+          span.textContent = part;
+          frag.appendChild(span);
+        } else {
+          frag.appendChild(document.createTextNode(part));
+        }
+      });
+      node.parentNode?.replaceChild(frag, node);
+    });
+  }
+
+  // localStorage key for action items state
+  let _planChart = null;
+
+  function renderPlanChart(items) {
+    const section = document.getElementById('ai-plan-section');
+    const canvas = document.getElementById('ai-plan-chart');
+    if (!section || !canvas || !items.length) {
+      if (section) section.hidden = true;
+      return;
+    }
+    if (_planChart) { _planChart.destroy(); _planChart = null; }
+
+    const MAX_TASKS = 10;
+    const tasks = items.slice(0, MAX_TASKS);
+    const labels = tasks.map((t, i) => {
+      const clean = t.replace(/^\d+[\.\)]\s*/, '').replace(/\*+/g, '').trim();
+      return clean.length > 55 ? clean.slice(0, 52) + '…' : clean;
+    });
+    // Gantt-style: [startWeek, endWeek] — task i starts at week i, lasts 1 week
+    const data = tasks.map((_, i) => [i, i + 1]);
+    const colors = [
+      'rgba(10,132,255,0.75)', 'rgba(48,209,88,0.75)', 'rgba(255,159,10,0.75)',
+      'rgba(255,69,58,0.75)',  'rgba(100,210,255,0.75)','rgba(191,90,242,0.75)',
+      'rgba(255,214,10,0.75)', 'rgba(48,209,88,0.6)',   'rgba(10,132,255,0.6)',
+      'rgba(255,69,58,0.6)',
+    ];
+
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    const textColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)';
+
+    _planChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Неделя',
+          data,
+          backgroundColor: tasks.map((_, i) => colors[i % colors.length]),
+          borderRadius: 4,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const [s, e] = ctx.raw;
+                return ' Неделя ' + (s + 1) + (e > s + 1 ? '–' + e : '');
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: tasks.length,
+            ticks: {
+              stepSize: 1,
+              color: textColor,
+              callback: (v) => v === 0 ? 'Сейчас' : 'Нед. ' + v,
+            },
+            grid: { color: gridColor },
+          },
+          y: {
+            ticks: { color: textColor, font: { size: 11 } },
+            grid: { display: false },
+          },
+        },
+      },
+    });
+
+    // Adjust canvas height based on task count
+    canvas.parentElement.style.height = Math.max(80, tasks.length * 34 + 20) + 'px';
+    section.hidden = false;
+  }
+
+  function actionsKey(rawText) {
+    // Simple hash from first 120 chars
+    return 'aq_actions_' + btoa(encodeURIComponent((rawText || '').slice(0, 120))).slice(0, 24);
+  }
+
+  function extractActions(container, rawText) {
+    const card = document.getElementById('ai-actions-card');
+    const list = document.getElementById('ai-actions-list');
+    if (!card || !list) return;
+
+    // Find Приоритеты / Действия heading
+    let itemsUl = null;
+    for (const h of container.querySelectorAll('h2, h3')) {
+      if (/приоритет|действи|план|что делать/i.test(h.textContent || '')) {
+        let next = h.nextElementSibling;
+        while (next && !['UL', 'OL'].includes(next.tagName)) {
+          if (['H2', 'H3'].includes(next.tagName)) break;
+          next = next.nextElementSibling;
+        }
+        if (next && ['UL', 'OL'].includes(next.tagName)) { itemsUl = next; break; }
+      }
+    }
+    if (!itemsUl) { card.hidden = true; return; }
+
+    const storageKey = actionsKey(rawText);
+    let savedState = {};
+    try { savedState = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) {}
+
+    list.innerHTML = '';
+    let idx = 0;
+    itemsUl.querySelectorAll('li').forEach((li) => {
+      const text = (li.textContent || '').trim();
+      if (!text) return;
+      const id = 'ai-action-' + idx++;
+      const checked = !!savedState[id];
+      const item = document.createElement('li');
+      item.className = 'ai-action-item' + (checked ? ' ai-action-done' : '');
+      item.innerHTML =
+        '<input type="checkbox" id="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
+        '<label for="' + esc(id) + '">' + esc(text) + '</label>';
+      item.querySelector('input')?.addEventListener('change', (e) => {
+        item.classList.toggle('ai-action-done', e.target.checked);
+        try {
+          const st = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          if (e.target.checked) st[id] = 1; else delete st[id];
+          localStorage.setItem(storageKey, JSON.stringify(st));
+        } catch (_) {}
+      });
+      list.appendChild(item);
+    });
+
+    card.hidden = list.children.length === 0;
+
+    // Build plan timeline from extracted action items
+    const actionTexts = Array.from(list.querySelectorAll('label')).map((l) => l.textContent || '');
+    renderPlanChart(actionTexts);
+
+    document.getElementById('btn-actions-clear')?.addEventListener('click', () => {
+      try { localStorage.removeItem(storageKey); } catch (_) {}
+      list.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = false;
+        cb.closest('.ai-action-item')?.classList.remove('ai-action-done');
+      });
+    }, { once: true });
+  }
+
   function renderMarkdown(text) {
     const out = document.getElementById('ai-output');
     if (!out) return;
@@ -884,6 +1103,9 @@
     } else {
       out.innerHTML = '<pre style="white-space:pre-wrap;margin:0">' + esc(text) + '</pre>';
     }
+    classifySections(out);
+    highlightNumbers(out);
+    extractActions(out, text);
     renderOutline();
     afterRenderAdjustLayout(text);
   }
@@ -913,18 +1135,51 @@
     } catch (_) {}
   }
 
+  // ── Progress steps ────────────────────────────────────────────────────────
+  // step: 0 = hide, 1 = sync active, 2 = model active, 3 = done
+  function setProgressStep(step) {
+    const wrap = document.getElementById('ai-progress-wrap');
+    const s1 = document.getElementById('ai-step-sync');
+    const s2 = document.getElementById('ai-step-model');
+    const s3 = document.getElementById('ai-step-done');
+    if (!wrap || !s1 || !s2 || !s3) return;
+    if (step === 0) {
+      wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    s1.className = 'ai-progress-step' + (step === 1 ? ' ai-progress-step-active' : step > 1 ? ' ai-progress-step-done' : '');
+    s2.className = 'ai-progress-step' + (step === 2 ? ' ai-progress-step-active' : step > 2 ? ' ai-progress-step-done' : '');
+    s3.className = 'ai-progress-step' + (step === 3 ? ' ai-progress-step-done' : '');
+  }
+
+  // ── Result meta badge ─────────────────────────────────────────────────────
+  function showResultMeta(provider, model, ms) {
+    const el = document.getElementById('ai-result-meta');
+    if (!el) return;
+    const pName = { gemini: 'Gemini', groq: 'Groq', claude: 'Claude' }[provider] || provider || '';
+    const mName = model || '';
+    const time = ms != null ? Math.round(ms / 100) / 10 + 'с' : '';
+    const parts = [];
+    if (pName) parts.push('<span class="ai-result-meta-badge ai-result-meta-badge-ok">✓ ' + esc(pName) + '</span>');
+    if (mName && mName !== pName) parts.push('<span class="ai-result-meta-badge">' + esc(mName) + '</span>');
+    if (time) parts.push('<span class="ai-result-meta-badge">' + esc(time) + '</span>');
+    if (!parts.length) { el.hidden = true; return; }
+    el.innerHTML = parts.join('');
+    el.hidden = false;
+  }
+
+  function hideResultMeta() {
+    const el = document.getElementById('ai-result-meta');
+    if (el) { el.hidden = true; el.innerHTML = ''; }
+  }
+
+
   function setGeneratingState(busy) {
-    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot', 'btn-analyze-all', 'btn-compare', 'btn-what-changed'];
+    const ids = ['btn-generate', 'btn-generate-stream', 'btn-snapshot', 'btn-analyze-all', 'btn-compare'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.disabled = busy;
-    });
-  }
-
-  function setActiveMode(mode) {
-    currentMode = mode;
-    document.querySelectorAll('.ai-mode-btn[data-mode]').forEach((btn) => {
-      btn.classList.toggle('ai-mode-btn-active', btn.getAttribute('data-mode') === mode);
     });
   }
 
@@ -940,7 +1195,9 @@
     }
 
     setGeneratingState(true);
-    st.textContent = '1/2 Синхронизация с Airtable…';
+    setProgressStep(1);
+    hideResultMeta();
+    st.textContent = '';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
@@ -962,7 +1219,7 @@
       const resp = await fetch('ai_insights_stream_api.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ customQuestion: getCustomQuestion(), mode: currentMode }),
+        body: JSON.stringify({ customQuestion: getCustomQuestion() }),
         signal: controller.signal,
       });
 
@@ -1006,7 +1263,9 @@
               continue;
             }
             if (currentEvent === 'status') {
-              st.textContent = data.msg || '';
+              const msg = data.msg || '';
+              st.textContent = msg;
+              if (msg.startsWith('2/2') || msg.includes('модели')) setProgressStep(2);
             } else if (currentEvent === 'text') {
               streamText += data.t || '';
               if (out) {
@@ -1017,24 +1276,23 @@
                   '<span class="ai-stream-cursor">▌</span>';
               }
             } else if (currentEvent === 'error') {
-              const errMsg = data.error || 'Ошибка стриминга';
-              st.textContent = errMsg;
+              st.textContent = data.error || 'Ошибка стриминга';
               st.classList.add('ai-status-err');
-              window.AqToast?.err(errMsg);
               if (out) {
                 out.classList.add('ai-markdown-empty');
-                out.innerHTML = '<p class="ai-output-placeholder">' + esc(errMsg) + '</p>';
+                out.innerHTML = '<p class="ai-output-placeholder">' + esc(data.error || '') + '</p>';
               }
               done = true;
               break;
             } else if (currentEvent === 'done') {
               done = true;
+              setProgressStep(3);
+              setTimeout(() => setProgressStep(0), 2000);
               // Финальный рендер без курсора
               lastMarkdownRaw = streamText;
               if (out) {
                 renderMarkdown(streamText);
               }
-              window.AqToast?.ok('Анализ готов · ' + (data.provider || ''));
               applyNumberWarnings(data.numberWarnings || []);
               persistLastAnalysis(streamText, {
                 promptVersion: data.promptVersion,
@@ -1042,19 +1300,12 @@
                 provider: data.provider,
               });
               showOutputToolbar(true);
+              showResultMeta(data.provider, data.llmModel, data.llmMs);
+              showDataTimestamp(Math.floor(Date.now() / 1000));
               const rw = document.getElementById('ai-restore-wrap');
               if (rw) rw.hidden = true;
 
-              const prov = data.provider || '';
-              const lm = data.llmModel ? ' · ' + data.llmModel : '';
-              const tm = data.llmMs != null ? ' · LLM ' + data.llmMs + ' ms' : '';
-              st.textContent =
-                'Готово (стриминг). В истории: ' +
-                (data.historyCount ?? '—') +
-                '. ' +
-                prov +
-                lm +
-                tm;
+              st.textContent = 'Снимок сохранён в истории: ' + (data.historyCount ?? '—');
               st.classList.add('ai-status-ok');
               st.classList.remove('ai-status-err');
 
@@ -1082,6 +1333,7 @@
       st.classList.add('ai-status-err');
     } finally {
       activeStreamController = null;
+      setProgressStep(0);
       setGeneratingState(false);
     }
   }
@@ -1125,8 +1377,10 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     setGeneratingState(true);
+    setProgressStep(1);
+    hideResultMeta();
     clearErrorStatus();
-    st.textContent = '1/2 Сброс кэша и синхронизация всех дашбордов из Airtable…';
+    st.textContent = '';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
@@ -1157,7 +1411,7 @@
         renderVisualSummary(next);
       }
 
-      st.textContent = '2/2 Запрос к модели (краткий обзор всех дашбордов)…';
+      setProgressStep(2);
       const r2 = await fetch('ai_insights_api.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
@@ -1179,8 +1433,11 @@
         return;
       }
       clearErrorStatus();
-      const prov = j.provider ? j.provider : '';
-      st.textContent = 'Готово (все дашборды). ' + prov;
+      setProgressStep(3);
+      setTimeout(() => setProgressStep(0), 2000);
+      showResultMeta(j.provider, j.llmModel, j.llmMs);
+      showDataTimestamp(Math.floor(Date.now() / 1000));
+      st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—');
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
       if (j.analysis) {
@@ -1201,9 +1458,11 @@
       st.textContent = 'Сетевая ошибка: ' + String(e);
       st.classList.add('ai-status-err');
     } finally {
+      setProgressStep(0);
       setGeneratingState(false);
     }
   }
+
 
   async function generate() {
     const btn = document.getElementById('btn-generate');
@@ -1212,8 +1471,10 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (!btn || !st) return;
     setGeneratingState(true);
+    setProgressStep(1);
+    hideResultMeta();
     clearErrorStatus();
-    st.textContent = '1/2 Синхронизация с Airtable (API)…';
+    st.textContent = '';
     st.className = 'ai-card-hint';
     showOutputToolbar(false);
     applyNumberWarnings([]);
@@ -1260,14 +1521,15 @@
         renderVisualSummary(next);
       }
 
-      st.textContent = '2/2 Запрос к модели…';
+      setProgressStep(2);
+      st.textContent = '';
       const r2 = await fetch('ai_insights_api.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrf,
         },
-        body: JSON.stringify({ skipRefresh: true, customQuestion: getCustomQuestion(), mode: currentMode }),
+        body: JSON.stringify({ skipRefresh: true, customQuestion: getCustomQuestion() }),
       });
       let j = {};
       try {
@@ -1289,20 +1551,11 @@
         st.classList.add('ai-status-err');
         return;
       }
-      const prov = j.provider ? j.provider : '';
-      const lm = j.llmModel ? ' · ' + j.llmModel : '';
-      const tm =
-        j.refreshMs != null && j.llmMs != null
-          ? ' · sync ' + j.refreshMs + ' ms · LLM ' + j.llmMs + ' ms'
-          : '';
-      st.textContent =
-        'Готово. В истории снимков: ' +
-        (j.historyCount ?? '—') +
-        '. ' +
-        prov +
-        lm +
-        tm +
-        ' Графики соответствуют этому же снимку.';
+      setProgressStep(3);
+      setTimeout(() => setProgressStep(0), 2000);
+      showResultMeta(j.provider, j.llmModel, j.llmMs);
+      showDataTimestamp(Math.floor(Date.now() / 1000));
+      st.textContent = 'Снимок сохранён в истории: ' + (j.historyCount ?? '—');
       st.classList.add('ai-status-ok');
       st.classList.remove('ai-status-err');
 
@@ -1353,6 +1606,7 @@
       st.textContent = 'Сеть или сервер: ' + esc(String(e && e.message ? e.message : e));
       st.classList.add('ai-status-err');
     } finally {
+      setProgressStep(0);
       setGeneratingState(false);
     }
   }
@@ -1380,8 +1634,9 @@
         st.classList.add('ai-status-err');
         return;
       }
-      st.textContent = 'Снимок сохранён. В истории: ' + (j.historyCount ?? '—') + '.';
-      st.classList.add('ai-status-ok');
+      showToast('Снимок сохранён. В истории: ' + (j.historyCount ?? '—'), 'ok');
+      st.textContent = '';
+      st.classList.remove('ai-status-ok');
       if (j.historyChart) {
         buildHistoryChart(j.historyChart);
         mergeBootstrapHistory(j.historyChart, j.historyCount);
@@ -1409,23 +1664,47 @@
     }
     bindTheme();
 
+    // Data timestamp
+    showDataTimestamp(payload.syncedAt || null);
+
     document.getElementById('btn-generate')?.addEventListener('click', generate);
     document.getElementById('btn-generate-stream')?.addEventListener('click', generateStream);
     document.getElementById('btn-snapshot')?.addEventListener('click', saveSnapshot);
     document.getElementById('btn-analyze-all')?.addEventListener('click', analyzeAll);
 
-    // Режимы анализа
-    document.querySelectorAll('.ai-mode-btn[data-mode]').forEach((btn) => {
-      btn.addEventListener('click', () => setActiveMode(btn.getAttribute('data-mode') || 'all'));
-    });
-
-    // "Что изменилось?" — заполняем вопрос и запускаем стриминг
-    document.getElementById('btn-what-changed')?.addEventListener('click', () => {
-      applyPresetQuestion(
-        'Сравни текущий снимок с предыдущим: что изменилось по ДЗ (суммы, корзины, клиенты), ' +
-        'churn-риску и потерям. Выдели тренд: стало лучше или хуже? Назови конкретные цифры дельт.'
-      );
-      generateStream();
+    // Sync-only button
+    document.getElementById('btn-sync-data')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-sync-data');
+      const syncEl = document.getElementById('ai-charts-sync-status');
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      if (btn) btn.disabled = true;
+      if (syncEl) { syncEl.textContent = 'Синхронизация с Airtable…'; syncEl.hidden = false; }
+      try {
+        const r = await fetch('ai_insights_refresh_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({}),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          if (syncEl) { syncEl.textContent = j.error || 'Ошибка синхронизации'; syncEl.hidden = false; }
+          return;
+        }
+        mergeBootstrapCharts(j.charts, j.chartHints);
+        const raw = document.getElementById('ai-bootstrap');
+        let next = {};
+        if (raw) { try { next = JSON.parse(raw.textContent || '{}'); } catch (_) {} }
+        renderVisualSummary(next);
+        showDataTimestamp(Math.floor(Date.now() / 1000));
+        if (syncEl) {
+          showToast('Данные обновлены из Airtable', 'ok');
+          if (syncEl) syncEl.hidden = true;
+        }
+      } catch (e) {
+        if (syncEl) { syncEl.textContent = 'Сеть: ' + String(e?.message || e); syncEl.hidden = false; }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     });
 
     // Custom question toggle + presets
@@ -1442,6 +1721,43 @@
 
     // Comparison UI
     initCompareUi(payload);
+
+    // Ctrl+Enter → run stream analysis
+    document.getElementById('ai-custom-question')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        generateStream();
+      }
+    });
+
+    // Chart grid — lazy build on first click, then toggle
+    document.getElementById('btn-charts-toggle')?.addEventListener('click', () => {
+      const grid = document.getElementById('ai-chart-grid');
+      const btn = document.getElementById('btn-charts-toggle');
+      if (!grid || !btn) return;
+      // First click: build charts then show
+      if (!_chartsBuilt && _chartsPayload) {
+        buildCharts(_chartsPayload);
+        applyChartHints(_chartsPayload);
+        _chartsBuilt = true;
+      }
+      const hidden = grid.classList.toggle('ai-chart-grid-hidden');
+      btn.textContent = hidden ? 'Загрузить графики ▾' : 'Скрыть графики ▴';
+      btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    });
+
+    // FAB — show when main generate button scrolled out of view
+    const fab = document.getElementById('btn-fab');
+    if (fab) {
+      fab.addEventListener('click', generateStream);
+      const sentinel = document.getElementById('btn-generate-stream');
+      if (sentinel && 'IntersectionObserver' in window) {
+        const obs = new IntersectionObserver((entries) => {
+          fab.classList.toggle('ai-fab-visible', !entries[0].isIntersecting);
+        }, { threshold: 0 });
+        obs.observe(sentinel);
+      }
+    }
 
     // Авто-анализ запускается если прошло больше порога (включает синхронизацию Airtable внутри).
     // Если авто-анализ — НЕ запускаем отдельный refreshChartsFromApi, чтобы не конкурировать за лок.
@@ -1487,38 +1803,6 @@
       a.download = 'ai-insights-' + new Date().toISOString().slice(0, 10) + '.md';
       a.click();
       URL.revokeObjectURL(a.href);
-    });
-
-    document.getElementById('btn-ai-pdf')?.addEventListener('click', () => {
-      const raw = lastMarkdownRaw || '';
-      if (!raw.trim()) return;
-      document.documentElement.classList.add('ai-print-mode');
-      window.print();
-      setTimeout(() => document.documentElement.classList.remove('ai-print-mode'), 500);
-    });
-
-    document.getElementById('btn-ai-tg')?.addEventListener('click', async () => {
-      const raw = lastMarkdownRaw || '';
-      if (!raw.trim()) return;
-      // Telegram поддерживает упрощённый Markdown, конвертируем заголовки в жирный
-      const tg = raw
-        .replace(/^#{1,3} (.+)$/gm, '*$1*')
-        .replace(/\*\*(.+?)\*\*/g, '*$1*')
-        .trim();
-      try {
-        await navigator.clipboard.writeText(tg);
-        const stEl = document.getElementById('ai-status');
-        if (stEl) {
-          stEl.textContent = 'Текст скопирован для Telegram (вставьте в чат с форматированием).';
-          stEl.classList.add('ai-status-ok');
-        }
-      } catch (_) {
-        const stEl = document.getElementById('ai-status');
-        if (stEl) {
-          stEl.textContent = 'Не удалось скопировать. Используйте «Копировать Markdown» вручную.';
-          stEl.classList.add('ai-status-err');
-        }
-      }
     });
 
     // Авто-показ последнего сохранённого анализа из серверной истории

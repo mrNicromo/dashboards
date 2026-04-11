@@ -109,8 +109,8 @@ try {
     $ctxJson = AiInsightsContext::promptContext($dir, $baseId);
     $ctxBytes = strlen($ctxJson);
 
-    // Groq free tier: ~12 000 TPM — нужен сжатый контекст и меньший лимит вывода
-    $groqCtxJson = AiInsightsContext::promptContext($dir, $baseId, 22000);
+    // Groq free tier: 12 000 TPM; системный промпт ~1850 токенов → контекст ≤16 000 байт (~4000 т) + history + 2048 вывода ≈ 11 000 т
+    $groqCtxJson = AiInsightsContext::promptContext($dir, $baseId, 16000);
     $groqHistoryBlock = AiInsightsHistory::buildTrendPromptSection(8);
 
     $system = <<<'PROMPT'
