@@ -210,6 +210,7 @@
         ${buildWaterfallChart(d)}
         ${buildMonthlyChart(d)}
         ${buildSegmentChart(dFiltered)}
+        ${buildChurnRevenueBlock(d)}
         ${buildMidRow(d)}
         ${buildTables(d)}
       </div>`;
@@ -771,6 +772,66 @@
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // ── % Churn от выручки (4 квартала) ──────────────────────
+  function buildChurnRevenueBlock(d) {
+    const mrrMonthly = d.mrrMonthly || 0;
+    const byQ = d.byQuarter || {};
+    const quarters = ['Q1','Q2','Q3','Q4'];
+    const QUARTER_MONTHS = { Q1:'Янв–Мар', Q2:'Апр–Июн', Q3:'Июл–Сен', Q4:'Окт–Дек' };
+
+    const cards = quarters.map(q => {
+      const qData  = byQ[q] || {};
+      const churn  = qData.churn    || 0;
+      const total  = qData.total    || 0;
+      const ent    = qData.ent      || 0;
+      const smb    = qData.smb      || 0;
+      const rev    = mrrMonthly * 3; // квартальная выручка = MRR × 3
+      const pct    = rev > 0 ? Math.min(churn / rev * 100, 200) : 0;
+      const pctTot = rev > 0 ? Math.min(total / rev * 100, 200) : 0;
+      const barW   = Math.min(pct, 100);
+      const isOk   = pct <= 5; // норма: churn ≤ 5% квартальной выручки
+      const cls    = isOk ? 'ok' : pct <= 10 ? 'warn' : 'bad';
+      const hasData = churn > 0 || total > 0;
+
+      // Строки по сегментам
+      const entPct = rev > 0 ? (ent / rev * 100).toFixed(1) : '—';
+      const smbPct = rev > 0 ? (smb / rev * 100).toFixed(1) : '—';
+
+      return `
+        <div class="cf-rev-card">
+          <div class="cf-rev-card-head">
+            <span class="cf-rev-quarter">${q} 2026</span>
+            <span class="cf-rev-period">${QUARTER_MONTHS[q]}</span>
+          </div>
+          ${hasData ? `
+          <div class="cf-rev-pct ${cls}">${pct.toFixed(1)}%</div>
+          <div class="cf-rev-sub">Churn / Выручка × 100%</div>
+          <div class="cf-rev-bar-wrap">
+            <div class="cf-rev-bar ${cls}" style="width:${barW.toFixed(1)}%"></div>
+            <div class="cf-rev-threshold" style="left:5%"><span class="cf-rev-thresh-lbl">5%</span></div>
+          </div>
+          <div class="cf-rev-meta">
+            <span>Churn: <b>${fmtR(churn)}</b></span>
+            <span>Выручка ≈ <b>${fmtR(rev)}</b></span>
+          </div>
+          <div class="cf-rev-segs">
+            <div class="cf-rev-seg"><span class="cf-rev-seg-dot" style="background:#BF5AF2"></span>ENT: ${fmtR(ent)} (${entPct}%)</div>
+            <div class="cf-rev-seg"><span class="cf-rev-seg-dot" style="background:#5AC8FA"></span>SMB+: ${fmtR(smb)} (${smbPct}%)</div>
+          </div>
+          ${rev === 0 ? '<div class="cf-rev-note">⚠ MRR недоступен — обновите менеджерский дашборд</div>' : ''}
+          ` : `<div class="cf-rev-empty">Данных за ${q} пока нет</div>`}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="cf-section" style="margin-top:8px">
+        <div class="cf-section-head">
+          <h2>📊 % Churn от выручки ${tip('Доля потерь Churn от квартальной выручки.\nВыручка = MRR × 3 месяца.\nНорма: Churn ≤ 5% квартальной выручки.')}</h2>
+        </div>
+        <div class="cf-rev-grid">${cards}</div>
+      </div>`;
   }
 
   // ── Средний ряд: по продуктам, CSM, классификации, замены ─

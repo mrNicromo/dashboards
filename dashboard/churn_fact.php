@@ -21,7 +21,7 @@ if ($cached !== null) {
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Потери выручки — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=17">
-  <link rel="stylesheet" href="assets/churn_fact.css?v=12">
+  <link rel="stylesheet" href="assets/churn_fact.css?v=13">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -43,7 +43,7 @@ if ($cached !== null) {
   </div>
   <script src="assets/utils.js?v=1" defer></script>
   <script src="assets/toast.js?v=1" defer></script>
-  <script src="assets/churn_fact.js?v=17" defer></script>
+  <script src="assets/churn_fact.js?v=18" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 </body>
 </html>
