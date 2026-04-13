@@ -58,6 +58,16 @@ try {
 
     // Данные о потерях — из Google Sheets (новый источник)
     $data = ChurnFactGSheet::fetchReport($prob3risk, $prob3riskEnt, $prob3riskSmb);
+
+    // MRR из кэша менеджерского дашборда (для блока % Churn от выручки)
+    $mrrCachePath = __DIR__ . '/cache/mrr-manager.json';
+    $mrrMonthly   = 0.0;
+    if (is_readable($mrrCachePath)) {
+        $mrrJson = @json_decode((string)@file_get_contents($mrrCachePath), true);
+        $mrrMonthly = (float)($mrrJson['value'] ?? 0);
+    }
+    $data['mrrMonthly'] = $mrrMonthly;
+
     echo json_encode(['ok' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     http_response_code(500);
