@@ -21,7 +21,7 @@ if ($cached !== null) {
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Потери выручки — AnyQuery</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=17">
-  <link rel="stylesheet" href="assets/churn_fact.css?v=11">
+  <link rel="stylesheet" href="assets/churn_fact.css?v=12">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>

@@ -226,7 +226,7 @@ function fmtR(float $v): string {
       <div class="hub-card-body">
         <?php if ($dzTotal > 0): ?>
         <div class="hub-stat">
-          <span class="hub-stat-lbl">Общая ДЗ</span>
+          <span class="hub-stat-lbl">ПДЗ</span>
           <span class="hub-stat-val danger"><?= fmtR($dzTotal) ?></span>
         </div>
         <div class="hub-stat">
