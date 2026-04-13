@@ -589,7 +589,7 @@
     const cards = [
       {
         icon: '💸',
-        label: 'Общая ДЗ',
+        label: 'ПДЗ',
         value: fmtRub(c.totalDebt),
         sub: `${c.uniqueClients} клиентов`,
         cls: '',
@@ -603,7 +603,7 @@
       },
       {
         icon: revOk ? '✅' : '⚠️',
-        label: '% ДЗ от выручки',
+        label: '% ПДЗ от выручки',
         value: fmtPct(revPct),
         sub: revOk ? 'В норме (≤ 30%)' : 'Превышен порог 30%',
         cls: revOk ? 'kpi-ok' : 'kpi-danger',
@@ -931,7 +931,7 @@
       </div>`;
   }
 
-  // ─── % ДЗ от выручки ──────────────────────────────────────
+  // ─── % ПДЗ от выручки ─────────────────────────────────────
   function renderGaugeSection(totalDebt, mrr) {
     const pct   = mrr > 0 ? +(totalDebt / mrr * 100).toFixed(1) : 0;
     const isOk  = pct <= 30;
@@ -942,10 +942,10 @@
       <div class="mgr-section">
         <div class="mgr-section-head">
           <div>
-            <h2 class="mgr-section-title">% ДЗ от выручки (MRR)
-              <span class="mgr-help" title="Отношение общей дебиторской задолженности к MRR (Monthly Recurring Revenue). Рассчитывается из таблицы Клиенты, поле MRR sum. Норма: ДЗ ≤ 30% MRR.">?</span>
+            <h2 class="mgr-section-title">% ПДЗ от выручки (MRR)
+              <span class="mgr-help" title="Отношение просроченной дебиторской задолженности к MRR (Monthly Recurring Revenue). Рассчитывается из таблицы Клиенты, поле MRR sum. Норма: ПДЗ ≤ 30% MRR.">?</span>
             </h2>
-            <p class="mgr-section-hint">Какую долю от ежемесячной выручки составляет текущая задолженность. Норма — до 30%.</p>
+            <p class="mgr-section-hint">Какую долю от ежемесячной выручки составляет просроченная задолженность. Норма — до 30%.</p>
           </div>
           <span class="gauge-status-tag ${cls}">${isOk ? '✓ В норме' : '⚠ Превышен порог'}</span>
         </div>
@@ -959,7 +959,7 @@
               </div>
             </div>
             <div class="gauge-meta">
-              <span><span class="lbl">Общая ДЗ:</span> ${fmtRub(totalDebt)}</span>
+              <span><span class="lbl">ПДЗ:</span> ${fmtRub(totalDebt)}</span>
               <span><span class="lbl">MRR (выручка):</span> ${fmtRub(mrr)}</span>
             </div>
           </div>
@@ -1046,7 +1046,7 @@
         <div class="wkly-col${isLast ? ' wkly-col-current' : ''}">
           <div class="wkly-bars">
             <div class="wkly-bar wkly-bar-total"  style="height:${totalW}%"
-                 title="Общая ДЗ: ${fmtRub(p.totalDebt)}"></div>
+                 title="ПДЗ: ${fmtRub(p.totalDebt)}"></div>
             <div class="wkly-bar wkly-bar-overdue" style="height:${overdueW}%"
                  title="Просрочка 61+: ${fmtRub(p.overdueDebt)}"></div>
           </div>
@@ -1075,7 +1075,7 @@
           </div>
         </div>
         <div class="wkly-legend">
-          <span class="wkly-legend-item wkly-legend-total">Общая ДЗ</span>
+          <span class="wkly-legend-item wkly-legend-total">ПДЗ</span>
           <span class="wkly-legend-item wkly-legend-overdue">Просрочка 61+</span>
         </div>
         <div class="wkly-chart">
@@ -1405,7 +1405,7 @@
 
           <div class="modal-kpis">
             <div class="modal-kpi">
-              <div class="modal-kpi-lbl">Общая ДЗ</div>
+              <div class="modal-kpi-lbl">ПДЗ</div>
               <div class="modal-kpi-val">${fmtRub(totalDebt)}</div>
             </div>
             ${clientMrr > 0 ? `

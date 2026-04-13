@@ -448,6 +448,7 @@
           <div class="cf-forecast-seg-label">ENT прогноз</div>
           <div class="cf-forecast-seg-val">${fmtR(forecastEnt)}</div>
           <div class="cf-forecast-seg-sub">YTD ${fmtR(entYtd)} + Риск ${fmtR(prob3Ent)}</div>
+          <div class="cf-forecast-seg-note">❗️Прогноз включает в себя уход ЗЯ+Самокат</div>
           ${devEntPct !== null && targetEnt > 0 ? (() => {
             const tl = trafficLight(devEntPct);
             return `<div class="cf-forecast-seg-dev ${devCls(devEntPct)}">
