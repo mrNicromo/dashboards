@@ -1170,15 +1170,18 @@
       maxVal = Math.max(...bars.map(b => b.total || 0), 1);
       chartCols = bars.map((b, i) => {
         const h = ((b.total || 0) / maxVal * 100).toFixed(1);
+        const hasData = (b.total || 0) > 0;
         const isLast = i === bars.length - 1;
         const d2 = String(b.weekEnd || '').slice(5);
         const [m, day] = d2.split('-');
         const label = day && m ? `${day}.${m}` : d2;
         const active = drill && String(b.weekEnd) === String(drill);
+        const drillAttr = hasData ? ` data-pay-week="${esc(b.weekEnd)}"` : '';
+        const titleAttr = hasData ? 'Клик — разбивка по дням' : 'Нет оплат за эту неделю';
         return `
-        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}${active ? ' wkly-col-active' : ''}" data-pay-week="${esc(b.weekEnd)}" title="Клик — разбивка по дням">
+        <div class="wkly-col${isLast ? ' wkly-col-current' : ''}${active ? ' wkly-col-active' : ''}${hasData ? '' : ' wkly-col-empty'}"${drillAttr} title="${titleAttr}">
           <div class="wkly-bars">
-            <div class="wkly-bar wkly-bar-pay" style="height:${h}%"
+            <div class="wkly-bar wkly-bar-pay${hasData ? '' : ' wkly-bar-empty'}" style="height:${h}%"
                  title="Оплаты: ${fmtRub(b.total)}"></div>
           </div>
           <div class="wkly-label">${esc(label)}</div>

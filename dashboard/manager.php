@@ -44,7 +44,7 @@ if (is_readable($factCache)) {
   <meta name="color-scheme" content="dark light">
   <title>Анализ дебиторской задолженности</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/manager.css?v=7">
+  <link rel="stylesheet" href="assets/manager.css?v=8">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
@@ -63,7 +63,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
   <script src="assets/toast.js?v=1" defer></script>
-  <script src="assets/manager.js?v=8" defer></script>
+  <script src="assets/manager.js?v=9" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>
 </body>

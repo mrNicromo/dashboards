@@ -998,6 +998,8 @@
 
 /* Оплаты: один бар на весь столбец */
 .wkly-bar-pay    { background: var(--chart-pay);   width: 80%; }
+.wkly-bar-empty  { background: var(--border, #3a3a3a); opacity: 0.35; }
+.wkly-col-empty  { cursor: default; }
 
 .wkly-label {
   font-size: 0.62rem;
