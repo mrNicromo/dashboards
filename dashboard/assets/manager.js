@@ -2156,7 +2156,8 @@
     render();
     const toast = window.AqToast;
     try {
-      const res  = await fetch('manager_api.php', { cache: 'no-store' });
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+      const res  = await fetch('manager_api.php', { cache: 'no-store', headers: { 'X-CSRF-Token': csrf } });
       const json = await res.json();
       if (json.ok && json.data) {
         state.data = json.data;

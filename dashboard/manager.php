@@ -42,6 +42,7 @@ if (is_readable($factCache)) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Анализ дебиторской задолженности</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
   <link rel="stylesheet" href="assets/manager.css?v=8">
@@ -63,7 +64,7 @@ if (is_readable($factCache)) {
   <script type="application/json" id="fact-bootstrap"><?= $factJson ?></script>
   <div id="app"></div>
   <script src="assets/toast.js?v=1" defer></script>
-  <script src="assets/manager.js?v=9" defer></script>
+  <script src="assets/manager.js?v=10" defer></script>
   <script src="assets/shared-nav.js?v=3" defer></script>
 <?php endif; ?>
 </body>
