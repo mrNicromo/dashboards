@@ -1255,10 +1255,6 @@
             </h2>
             <p class="mgr-section-hint">Вид «♥️Оплачено CSM» · ${bars.length} недель</p>
           </div>
-          <div class="wkly-delta ${deltaCls}">
-            <span class="wkly-delta-lbl">Изменение нед/нед</span>
-            <span class="wkly-delta-val">${deltaSign}${fmtRub(delta)}</span>
-          </div>
         </div>
         ${chartHint}
         <div class="wkly-legend">
