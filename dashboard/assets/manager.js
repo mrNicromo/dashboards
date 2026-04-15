@@ -1113,6 +1113,15 @@
       const bar = bars.find(b => String(b.weekEnd) === String(drill));
       if (!bar) return [];
       let lines = Array.isArray(bar.lines) ? [...bar.lines] : [];
+      // Fallback: если lines нет (старый кэш с entries вместо lines) — конвертируем entries
+      if (!lines.length && Array.isArray(bar.entries) && bar.entries.length) {
+        lines = bar.entries.map(e => ({
+          date:      String(e.date || ''),
+          amount:    e.amount || 0,
+          client:    String(e.fields?.['ЮЛ клиента'] || e.fields?.['Accounts (Связи) (from Связи)'] || '—'),
+          clientUrl: null,
+        }));
+      }
       if (!lines.length) lines = fromAllForWeek(bar);
       return filterPayLinesToWeekRange(lines, bar);
     }
@@ -1245,10 +1254,6 @@
               <span class="mgr-help" title="Суммы оплаченных счетов из вида «♥️Оплачено CSM» по неделям (среда → среда). Клик по столбцу — по дням.">?</span>
             </h2>
             <p class="mgr-section-hint">Вид «♥️Оплачено CSM» · ${bars.length} недель</p>
-          </div>
-          <div class="wkly-delta ${deltaCls}">
-            <span class="wkly-delta-lbl">Изменение нед/нед</span>
-            <span class="wkly-delta-val">${deltaSign}${fmtRub(delta)}</span>
           </div>
         </div>
         ${chartHint}
