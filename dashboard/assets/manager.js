@@ -1440,10 +1440,23 @@
           </div>
 
           ${(() => {
-            const atComments = [...new Set(clientRows.map(r => (r.comment || '').trim()).filter(Boolean))];
-            if (!atComments.length) return '';
-            return `<div class="modal-sub-title">📋 Комментарии из Airtable</div>
-              <div class="modal-at-comments">${atComments.map(c => `<div class="modal-at-comment">${esc(c)}</div>`).join('')}</div>`;
+            // Собираем уникальные комментарии с подсчётом повторов
+            const countMap = new Map();
+            for (const r of clientRows) {
+              const c = (r.comment || '').trim();
+              if (c) countMap.set(c, (countMap.get(c) || 0) + 1);
+            }
+            if (!countMap.size) return '';
+            const items = [...countMap.entries()];
+            const total = items.length;
+            return `<div class="modal-sub-title">📋 Комментарии из Airtable <span class="modal-at-cnt">${total}</span></div>
+              <div class="modal-at-comments">
+                ${items.map(([c, n]) => `
+                  <div class="modal-at-comment" title="${esc(c)}">
+                    <span class="modal-at-text">${esc(c)}</span>
+                    ${n > 1 ? `<span class="modal-at-badge">${n}</span>` : ''}
+                  </div>`).join('')}
+              </div>`;
           })()}
 
           <div class="modal-sub-title">💬 Заметки (локально)</div>

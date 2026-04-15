@@ -45,7 +45,7 @@ if (is_readable($factCache)) {
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title>Анализ дебиторской задолженности</title>
   <link rel="stylesheet" href="assets/dashboard.css?v=16">
-  <link rel="stylesheet" href="assets/manager.css?v=9">
+  <link rel="stylesheet" href="assets/manager.css?v=10">
   <script src="assets/aq-theme-boot.js?v=1"></script>
 </head>
 <body>
