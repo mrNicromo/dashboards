@@ -500,12 +500,19 @@ final class ManagerReport
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
-        // Вид «оплачено»: без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
-        // Явно запрашиваем нужные поля: Airtable вернёт их даже если они скрыты в виде.
+        // Оплаченные счета: не используем view= (вид может иметь встроенный фильтр по дате),
+        // вместо этого фильтруем по статусу напрямую. Без cellFormat — даты в ISO.
+        [$prevWedTmp] = self::weekRange();
+        $paidFrom = (new DateTime($prevWedTmp, new DateTimeZone('Europe/Moscow')))->modify('-7 days')->format('Y-m-d');
+        $paidFormula = "AND("
+            . "NOT(OR({Статус оплаты}='Не оплачен',{Статус оплаты}='Оплачен частично')),"
+            . "{Дата оплаты счета},"
+            . "IS_AFTER({Дата оплаты счета},'{$paidFrom}')"
+            . ")";
         $paidRecs   = Airtable::fetchAllPagesWithFieldNames(
             $baseId,
             self::DEBT_TABLE,
-            ['view' => self::PAID_VIEW],
+            ['filterByFormula' => $paidFormula],
             $pat,
             ['Дата оплаты счета', 'Сумма счета', 'Фактическая задолженность', 'ЮЛ клиента', self::SITE_FIELD_ID]
         );
