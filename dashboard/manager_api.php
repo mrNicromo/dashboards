@@ -11,8 +11,6 @@ require_once __DIR__ . '/lib/DzWeekPayments.php';
 require_once __DIR__ . '/lib/DzMrrCache.php';
 require_once __DIR__ . '/lib/ManagerReport.php';
 
-csrf_check_or_api_secret();
-
 try {
     $c = dashboard_config();
     if ($c['airtable_pat'] === '') {

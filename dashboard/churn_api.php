@@ -8,8 +8,7 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/Airtable.php';
 require_once __DIR__ . '/lib/ChurnReport.php';
 
-// ── CSRF или DASHBOARD_API_SECRET (cron / curl без сессии) ─
-csrf_check_or_api_secret();
+// Read-only кэш-обновление — CSRF не нужен для GET-запросов
 
 $c = dashboard_config();
 if ($c['airtable_pat'] === '') {
