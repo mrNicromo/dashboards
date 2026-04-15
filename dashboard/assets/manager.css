@@ -1468,37 +1468,21 @@ th.num .wk-pay-sort { text-align: right; width: 100%; }
 .modal-comment-ta:focus { border-color: var(--accent); }
 .modal-comment-ta::placeholder { color: var(--muted); }
 
-/* ── Airtable comments in modal ─────────────────────── */
-.modal-at-cnt {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent-dim); color: var(--accent);
-  font-size: 0.7rem; font-weight: 700; border-radius: 10px;
-  padding: 1px 7px; margin-left: 6px; vertical-align: middle;
-}
-.modal-at-comments {
-  display: flex; flex-direction: column; gap: 4px;
-  max-height: 180px; overflow-y: auto;
-  margin-bottom: 14px;
-  padding-right: 2px;
-}
-.modal-at-comment {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
-  font-size: 0.78rem; line-height: 1.4;
+/* ── Airtable comment block in modal ────────────────── */
+.modal-at-block {
+  font-size: 0.82rem;
+  line-height: 1.6;
   color: var(--text);
   background: var(--elevated);
-  border-left: 2px solid var(--accent);
+  border-left: 3px solid var(--accent);
   border-radius: 4px;
-  padding: 5px 9px;
-  cursor: default;
-}
-.modal-at-text {
-  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.modal-at-comment:hover .modal-at-text { white-space: normal; word-break: break-word; }
-.modal-at-badge {
-  flex-shrink: 0; font-size: 0.68rem; font-weight: 700;
-  background: var(--border); color: var(--muted);
-  border-radius: 8px; padding: 1px 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow-y: auto;
+  user-select: text;
 }
 
 /* ── Client name as button ───────────────────────────── */
