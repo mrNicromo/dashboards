@@ -96,8 +96,9 @@ final class DzWeekPayments
         $formula = "AND({Дата оплаты счета}, IS_AFTER({Дата оплаты счета}, '{$from}'))";
 
         // Без cellFormat: даты приходят как ISO (YYYY-MM-DD), иначе при ru-locale строки ломают разбор.
+        // view= НЕ передаём: вид viwNp3aOtWxmQuKp5 имеет фильтр по дате (24/3–1/4), который обрезает данные.
+        // Используем только свой filterByFormula, чтобы получить все записи за нужный период.
         $query = [
-            'view'              => $v,
             'filterByFormula'   => $formula,
             'pageSize'          => '100',
         ];

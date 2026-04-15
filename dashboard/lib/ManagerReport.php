@@ -497,7 +497,9 @@ final class ManagerReport
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
         // Вид «оплачено»: без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
-        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::PAID_VIEW], $pat);
+        // view= НЕ передаём: вид viwNp3aOtWxmQuKp5 имеет фильтр по дате и менеджеру, который обрезает данные.
+        // Используем filterByFormula напрямую, чтобы получить все оплаченные записи без ограничений вида.
+        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['filterByFormula' => '{Статус оплаты} = "Оплачен"'], $pat);
         $mrrData    = self::computeMrr($pat, $baseId);
 
         $siteFieldName = '';
