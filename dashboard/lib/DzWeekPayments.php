@@ -96,14 +96,16 @@ final class DzWeekPayments
         $formula = "AND({Дата оплаты счета}, IS_AFTER({Дата оплаты счета}, '{$from}'))";
 
         // Без cellFormat: даты приходят как ISO (YYYY-MM-DD), иначе при ru-locale строки ломают разбор.
+        // Явно запрашиваем нужные поля — Airtable вернёт их даже если скрыты в виде «Оплачено CSM».
         $query = [
             'view'              => $v,
             'filterByFormula'   => $formula,
             'pageSize'          => '100',
         ];
+        $requiredFields = ['Дата оплаты счета', 'Сумма счета', 'Фактическая задолженность', 'ЮЛ клиента'];
 
         try {
-            $raw = Airtable::fetchAllPages($baseId, $debtTableId, $query, $token);
+            $raw = Airtable::fetchAllPagesWithFieldNames($baseId, $debtTableId, $query, $token, $requiredFields);
         } catch (Throwable $e) {
             return [
                 'bars' => [],

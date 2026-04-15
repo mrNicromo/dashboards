@@ -1113,6 +1113,15 @@
       const bar = bars.find(b => String(b.weekEnd) === String(drill));
       if (!bar) return [];
       let lines = Array.isArray(bar.lines) ? [...bar.lines] : [];
+      // Fallback: если lines нет (старый кэш с entries вместо lines) — конвертируем entries
+      if (!lines.length && Array.isArray(bar.entries) && bar.entries.length) {
+        lines = bar.entries.map(e => ({
+          date:      String(e.date || ''),
+          amount:    e.amount || 0,
+          client:    String(e.fields?.['ЮЛ клиента'] || e.fields?.['Accounts (Связи) (from Связи)'] || '—'),
+          clientUrl: null,
+        }));
+      }
       if (!lines.length) lines = fromAllForWeek(bar);
       return filterPayLinesToWeekRange(lines, bar);
     }

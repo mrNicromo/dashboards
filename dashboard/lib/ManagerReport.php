@@ -32,6 +32,7 @@ final class ManagerReport
     private const CACHE      = __DIR__ . '/../cache/manager-report.json';
     private const TTL_FRESH  = 900;   // 15 min — подаём без вопросов
     private const TTL_STALE  = 3600;  // 1 hour — подаём с флагом _stale
+    private const SCHEMA_V   = 2;     // bump при изменении структуры weeklyPayments.bars
 
     /** Маппинг значений поля «Группа просрочки» → ключ для фронтенда */
     private const AGING_MAP = [
@@ -55,6 +56,8 @@ final class ManagerReport
         if (!is_readable(self::CACHE)) return null;
         $cached = json_decode(file_get_contents(self::CACHE) ?: '', true);
         if (!is_array($cached)) return null;
+        // Инвалидируем кэш при смене схемы (например, weeklyPayments.bars структура)
+        if (($cached['_schemaV'] ?? 0) < self::SCHEMA_V) return null;
         $age = time() - ($cached['_ts'] ?? 0);
         if ($age >= self::TTL_STALE) return null;
         if ($age >= self::TTL_FRESH) $cached['_stale'] = true;
@@ -66,7 +69,8 @@ final class ManagerReport
      */
     public static function saveCache(array $data): void
     {
-        $data['_ts'] = time();
+        $data['_ts']     = time();
+        $data['_schemaV'] = self::SCHEMA_V;
         $dir = dirname(self::CACHE);
         if (!is_dir($dir)) mkdir($dir, 0775, true);
         file_put_contents(self::CACHE, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
@@ -497,7 +501,14 @@ final class ManagerReport
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
         // Вид «оплачено»: без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
-        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::PAID_VIEW], $pat);
+        // Явно запрашиваем нужные поля: Airtable вернёт их даже если они скрыты в виде.
+        $paidRecs   = Airtable::fetchAllPagesWithFieldNames(
+            $baseId,
+            self::DEBT_TABLE,
+            ['view' => self::PAID_VIEW],
+            $pat,
+            ['Дата оплаты счета', 'Сумма счета', 'Фактическая задолженность', 'ЮЛ клиента', self::SITE_FIELD_ID]
+        );
         $mrrData    = self::computeMrr($pat, $baseId);
 
         $siteFieldName = '';
