@@ -1468,6 +1468,20 @@ th.num .wk-pay-sort { text-align: right; width: 100%; }
 .modal-comment-ta:focus { border-color: var(--accent); }
 .modal-comment-ta::placeholder { color: var(--muted); }
 
+/* ── Airtable comments in modal ─────────────────────── */
+.modal-at-comments { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.modal-at-comment {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--elevated);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 7px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── Client name as button ───────────────────────────── */
 .client-name-btn {
   background: none;

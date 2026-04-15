@@ -839,7 +839,7 @@ final class ManagerReport
                 'manager'   => $mgr,
                 'direction' => (string) ($f['Направление'] ?? ''),
                 'company'   => (string) ($f['Наша компания'] ?? ''),
-                'comment'   => mb_strimwidth((string) ($f['Комментарий по ДЗ'] ?? ''), 0, 80, '…'),
+                'comment'   => trim((string) ($f['Комментарий по ДЗ'] ?? '')),
                 'status'    => (string) ($f['Статус оплаты'] ?? ''),
                 'mrr'       => $clients[$юл]['mrr'] ?? 0.0,
             ];

@@ -1439,7 +1439,14 @@
             </table>
           </div>
 
-          <div class="modal-sub-title">💬 Комментарий</div>
+          ${(() => {
+            const atComments = [...new Set(clientRows.map(r => (r.comment || '').trim()).filter(Boolean))];
+            if (!atComments.length) return '';
+            return `<div class="modal-sub-title">📋 Комментарии из Airtable</div>
+              <div class="modal-at-comments">${atComments.map(c => `<div class="modal-at-comment">${esc(c)}</div>`).join('')}</div>`;
+          })()}
+
+          <div class="modal-sub-title">💬 Заметки (локально)</div>
           <textarea class="modal-comment-ta" id="modal-comment-ta"
             placeholder="Добавить заметку по клиенту…" rows="3">${esc(comment)}</textarea>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
