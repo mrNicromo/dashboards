@@ -120,10 +120,12 @@ final class DzWeekPayments
         if ($thisWedDt === false) {
             $thisWedDt = $now;
         }
+        $nextWedDt = $thisWedDt->modify('+7 days');
+        $nextWed   = $nextWedDt->format('Y-m-d');
 
         $templates = [];
         for ($i = 0; $i < $weeks; $i++) {
-            $end   = $thisWedDt->modify('-' . (7 * $i) . ' days');
+            $end   = $nextWedDt->modify('-' . (7 * $i) . ' days');
             $start = $end->modify('-7 days');
             $we    = $end->format('Y-m-d');
             $ws    = $start->format('Y-m-d');
@@ -175,7 +177,7 @@ final class DzWeekPayments
                 }
             }
             unset($t);
-            if ($d >= $curPrev && $d <= $curThis) {
+            if ($d >= $curThis && $d <= $nextWed) {
                 $currentWeekTotal += $amt;
             }
         }
@@ -196,8 +198,8 @@ final class DzWeekPayments
         return [
             'bars' => $bars,
             'currentWeekTotal' => round($currentWeekTotal, 2),
-            'weekStart' => $curPrev,
-            'weekEnd' => $curThis,
+            'weekStart' => $curThis,
+            'weekEnd' => $nextWed,
             'error' => null,
         ];
     }
