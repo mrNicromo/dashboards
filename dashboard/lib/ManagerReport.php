@@ -21,7 +21,9 @@ final class ManagerReport
     private const DEBT_VIEW   = 'viw977k6GUNrkeRRy';
     private const PAID_VIEW   = 'viwNp3aOtWxmQuKp5';
     /** Основной столбец с сайтом (Accounts / связи) — стабильный id из URL Airtable */
-    private const SITE_FIELD_ID = 'fldTjt7eBeGR7qUHg';
+    private const SITE_FIELD_ID    = 'fldTjt7eBeGR7qUHg';
+    /** Комментарий по ДЗ — стабильный id поля */
+    private const COMMENT_FIELD_ID = 'fldcbZfwbRVNz97V8';
     private const CS_TABLE    = 'tblIKAi1gcFayRJTn';
     private const CS_ALL_VIEW = 'viwz7G1vPxxg0WvC3';
     /** Вид из UI (все строки с колонками ЮЛ/сайт) — пробуем первым в запросе по field id */
@@ -507,6 +509,12 @@ final class ManagerReport
         } catch (Throwable) {
             $siteFieldName = '';
         }
+        $commentFieldName = '';
+        try {
+            $commentFieldName = Airtable::getFieldNameById($baseId, self::DEBT_TABLE, self::COMMENT_FIELD_ID, $pat) ?? '';
+        } catch (Throwable) {
+            $commentFieldName = '';
+        }
         [$prevWed, $thisWed] = self::weekRange();
 
         // Нормализованный lookup: lowercase+trim → mrr value
@@ -520,7 +528,7 @@ final class ManagerReport
         $fromIds   = self::loadCsLegalSiteMapByFieldIds($pat, $baseId);
         $fromNamed = $mrrData['csLegalSiteFromNamedFields'] ?? [];
         $csLegalToSite = array_merge($fromNamed, $fromIds);
-        $report = self::build($debtRecs, $paidRecs, $mrrData['value'], $prevWed, $thisWed, $rawClientMrr, $mrrNorm, $siteFieldName, $csLegalToSite);
+        $report = self::build($debtRecs, $paidRecs, $mrrData['value'], $prevWed, $thisWed, $rawClientMrr, $mrrNorm, $siteFieldName, $csLegalToSite, $commentFieldName);
 
         // Еженедельная история ДЗ — serious overdue = 61-90 + 91+
         $overdueDebt = ($report['groupTotals']['61-90'] ?? 0.0) + ($report['groupTotals']['91+'] ?? 0.0);
@@ -731,8 +739,9 @@ final class ManagerReport
         string $thisWed,
         array $clientMrr = [],    // точный map: clientName => mrr
         array $mrrNorm   = [],    // нормализованный map: mb_strtolower(trim(name)) => mrr
-        string $siteFieldName = '', // имя поля fldTjt7eBeGR7qUHg из Meta API
-        array $csLegalToSite = []   // ЮЛ→сайт из CS ALL (loadCsLegalSiteMapByFieldIds)
+        string $siteFieldName = '',    // имя поля fldTjt7eBeGR7qUHg из Meta API
+        array $csLegalToSite = [],    // ЮЛ→сайт из CS ALL (loadCsLegalSiteMapByFieldIds)
+        string $commentFieldName = '' // имя поля fldcbZfwbRVNz97V8 из Meta API
     ): array {
         // Вспомогалка для поиска MRR по имени/сайту с нормализацией.
         // clientMrr кодируется по домену (Site ID из CS ALL), поэтому приоритет — site.
@@ -807,15 +816,18 @@ final class ManagerReport
                 $mgr   = is_array($first) ? (string) ($first['name'] ?? $first['email'] ?? '') : (string) $first;
             }
 
+            $direction = trim((string) ($f['Направление'] ?? ''));
+
             if (!isset($clients[$юл])) {
                 $clients[$юл] = [
-                    'client'  => $displayClient,   // показываем сайт, если он есть
-                    'юл'      => $юл,       // внутренний ключ для матчинга оплат
-                    'site'    => $site,
-                    'total'   => 0.0,
-                    'groups'  => ['0-15' => 0.0, '16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0],
-                    'manager' => $mgr,
-                    'mrr'     => $lookupMrr($displayClient, $юл, $site),
+                    'client'    => $displayClient,
+                    'юл'        => $юл,
+                    'site'      => $site,
+                    'total'     => 0.0,
+                    'groups'    => ['0-15' => 0.0, '16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0],
+                    'manager'   => $mgr,
+                    'direction' => $direction,
+                    'mrr'       => $lookupMrr($displayClient, $юл, $site),
                 ];
             } elseif ($clients[$юл]['mrr'] == 0.0 && $site !== '') {
                 // Если MRR ещё не найден, пробуем по сайту при следующей встрече записи
@@ -839,7 +851,8 @@ final class ManagerReport
                 'manager'   => $mgr,
                 'direction' => (string) ($f['Направление'] ?? ''),
                 'company'   => (string) ($f['Наша компания'] ?? ''),
-                'comment'   => mb_strimwidth((string) ($f['Комментарий по ДЗ'] ?? ''), 0, 80, '…'),
+                'comment'   => trim((string) ($commentFieldName !== '' && array_key_exists($commentFieldName, $f) ? $f[$commentFieldName] : ($f['Комментарий по ДЗ'] ?? ''))),
+                'nextStep'  => trim((string) ($f['Следующий шаг_ Статус_'] ?? '')),
                 'status'    => (string) ($f['Статус оплаты'] ?? ''),
                 'mrr'       => $clients[$юл]['mrr'] ?? 0.0,
             ];
@@ -867,6 +880,27 @@ final class ManagerReport
             $mgrMrrMap[$m] = ($mgrMrrMap[$m] ?? 0.0) + $c['mrr'];
         }
         usort($byMgr, static fn($a, $b) => $b['total'] <=> $a['total']);
+
+        $byDir = [];
+        foreach ($clients as $c) {
+            $dir = $c['direction'] !== '' ? $c['direction'] : 'Не указано';
+            if (!isset($byDir[$dir])) {
+                $byDir[$dir] = [
+                    'direction' => $dir,
+                    'total'     => 0.0,
+                    'groups'    => ['0-15' => 0.0, '16-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '91+' => 0.0],
+                    'mrr'       => 0.0,
+                    'clients'   => 0,
+                ];
+            }
+            $byDir[$dir]['total']   += $c['total'];
+            $byDir[$dir]['mrr']     += $c['mrr'] ?? 0.0;
+            $byDir[$dir]['clients'] += 1;
+            foreach (self::AGING_GROUPS as $g) {
+                $byDir[$dir]['groups'][$g] += $c['groups'][$g];
+            }
+        }
+        usort($byDir, static fn($a, $b) => $b['total'] <=> $a['total']);
 
         // Сортируем клиентов по сумме долга, берём TOP-10
         usort($clients, static fn($a, $b) => $b['total'] <=> $a['total']);
@@ -971,6 +1005,7 @@ final class ManagerReport
             'allRows'         => $allRows,    // все строки для клиентской фильтрации
             'allClients'      => $allClients, // все клиенты (не только TOP-10)
             'byManager'       => array_values($byMgr), // агрегация по менеджерам
+            'byDirection'     => array_values($byDir), // агрегация по сегментам (Направление)
             'managerMrr'      => $mgrMrrMap,  // manager → суммарный MRR его портфеля
             'clientTrends'    => $clientTrends,    // тренд нед/нед: up|down|same|new
             'clientInvoiceCounts' => $clientInvoiceCounts, // кол-во счётов по клиенту
