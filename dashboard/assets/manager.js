@@ -235,6 +235,7 @@
         ${renderPaymentsSection(d)}
         ${renderWeeklyPayChart(d)}
         ${renderGroupChartSection(computed.grpTotals, computed.totalDebt)}
+        ${renderSegmentsSection(d)}
         ${renderDetailSection(d)}
       </div>
       ${state.modalClient ? renderClientModal(state.modalClient, d) : ''}`;
@@ -1436,7 +1437,11 @@
             </table>
           </div>
 
-          <div class="modal-sub-title">💬 Комментарий</div>
+          ${clientRows[0]?.comment ? `
+          <div class="modal-sub-title">💬 Комментарий (Airtable)</div>
+          <div style="background:var(--bg2,#f5f5f7);border-radius:8px;padding:10px 12px;font-size:0.82rem;color:var(--text);white-space:pre-wrap;word-break:break-word;margin-bottom:16px">${esc(clientRows[0].comment)}</div>` : ''}
+
+          <div class="modal-sub-title">💬 Заметка</div>
           <textarea class="modal-comment-ta" id="modal-comment-ta"
             placeholder="Добавить заметку по клиенту…" rows="3">${esc(comment)}</textarea>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
@@ -1483,6 +1488,80 @@
         <div class="group-chart">
           ${rows.join('')}
         </div>
+      </div>`;
+  }
+
+  // ─── ПДЗ по сегментам (SMB / SME / ENT) ─────────────────
+  function renderSegmentsSection(d) {
+    const dirs = d.byDirection;
+    if (!dirs || dirs.length === 0) return '';
+
+    const totalAll = dirs.reduce((s, r) => s + r.total, 0);
+    const totalMrr = dirs.reduce((s, r) => s + r.mrr,   0);
+    const AGING = ['0-15','16-30','31-60','61-90','91+'];
+    const maxTotal = Math.max(...dirs.map(r => r.total), 1);
+
+    const rows = dirs.map(seg => {
+      const pctOfAll = totalAll > 0 ? (seg.total / totalAll * 100).toFixed(1) : '0.0';
+      const pctOfMrr = seg.mrr > 0   ? (seg.total / seg.mrr  * 100).toFixed(0) : null;
+      const mrrBadge = pctOfMrr !== null
+        ? `<span class="chart-pct" style="margin-left:6px;color:${+pctOfMrr > 100 ? 'var(--danger)' : +pctOfMrr > 50 ? 'var(--warn)' : 'var(--ok)'}">${pctOfMrr}% MRR</span>`
+        : '';
+
+      const stackParts = AGING.map(g => {
+        const gv = seg.groups?.[g] || 0;
+        const gw = seg.total > 0 ? (gv / seg.total * 100).toFixed(1) : 0;
+        return gv > 0
+          ? `<div class="chart-bar ${BAR_CSS[g]}" style="width:${gw}%;display:inline-block;height:100%" title="${GRP_LABELS[g]}: ${fmtRub(gv)}"></div>`
+          : '';
+      }).join('');
+
+      const agingBreakdown = AGING.map(g => {
+        const gv = seg.groups?.[g] || 0;
+        if (!gv) return '';
+        const gw = seg.total > 0 ? (gv / seg.total * 100).toFixed(0) : 0;
+        return `<span class="grp-badge ${GRP_CSS[g]}" style="margin-right:4px;font-size:0.7rem">${GRP_LABELS[g]} ${gw}%</span>`;
+      }).join('');
+
+      const barW = (seg.total / maxTotal * 100).toFixed(1);
+
+      return `
+        <div class="chart-row" style="align-items:flex-start;gap:8px">
+          <div class="chart-label" style="min-width:80px;font-weight:600;font-size:0.85rem">${esc(seg.direction)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="chart-track" style="height:16px;overflow:hidden;border-radius:4px;margin-bottom:4px" title="${fmtRub(seg.total)} · ${pctOfAll}% от ПДЗ">
+              ${stackParts || `<div class="chart-bar ${BAR_CSS['0-15']}" style="width:${barW}%;display:inline-block;height:100%"></div>`}
+            </div>
+            <div style="font-size:0.72rem;color:var(--muted)">${agingBreakdown}</div>
+          </div>
+          <div class="chart-val" style="min-width:140px;text-align:right">
+            ${fmtRub(seg.total)}
+            <span class="chart-pct">${pctOfAll}%</span>${mrrBadge}
+          </div>
+        </div>`;
+    }).join('');
+
+    const legend = AGING.map(g => `
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:0.75rem;color:var(--muted)">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px" class="${BAR_CSS[g]}"></span>${GRP_LABELS[g]}
+      </span>`).join('');
+
+    return `
+      <div class="mgr-section">
+        <div class="mgr-section-head">
+          <div>
+            <h2 class="mgr-section-title">🏷 ПДЗ по сегментам
+              <span class="mgr-help" title="Распределение просрочки по сегментам клиентов (SMB / SME / ENT). Стек внутри каждой полосы — возрастные группы.">?</span>
+            </h2>
+            <p class="mgr-section-hint">Сегменты по полю «Направление»; правее — % от ПДЗ и отношение к MRR сегмента.</p>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);text-align:right">
+            ${totalMrr > 0 ? `MRR сегментов: <strong style="color:var(--text)">${fmtRub(totalMrr)}</strong><br>` : ''}
+            Итого ПДЗ: <strong style="color:var(--text)">${fmtRub(totalAll)}</strong>
+          </div>
+        </div>
+        <div style="margin-bottom:8px;display:flex;flex-wrap:wrap">${legend}</div>
+        <div class="group-chart">${rows}</div>
       </div>`;
   }
 
@@ -1762,12 +1841,13 @@
               <th>Компания</th>
               <th>Номер счёта</th>
               <th>Статус</th>
+              <th>След. шаг</th>
               <th>Комментарий</th>
               <th style="width:36px"></th>
             </tr></thead>
             <tbody>
               ${rows.length === 0
-                ? `<tr><td colspan="16" class="empty-state" style="text-align:center;padding:32px;color:var(--muted)">
+                ? `<tr><td colspan="17" class="empty-state" style="text-align:center;padding:32px;color:var(--muted)">
                     Ничего не найдено${hasFilter ? ` — <button class="excl-reset" id="detail-reset-filters-2">сбросить фильтры</button>` : ''}
                   </td></tr>`
                 : pageRows.map(r => {
@@ -1794,7 +1874,8 @@
                     <td class="muted" style="font-size:0.75rem">${esc(r.company)}</td>
                     <td class="muted">${esc(r.invoice)}</td>
                     <td class="muted" style="font-size:0.75rem">${esc(r.status)}</td>
-                    <td class="muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.comment)}">${esc(r.comment)}</td>
+                    <td class="muted" style="min-width:160px;max-width:260px;white-space:pre-wrap;word-break:break-word;font-size:0.75rem;vertical-align:top">${esc(r.nextStep || '')}</td>
+                    <td class="muted" style="min-width:160px;max-width:260px;white-space:pre-wrap;word-break:break-word;font-size:0.75rem;vertical-align:top">${esc(r.comment || '')}</td>
                     <td><button class="excl-btn" data-excl="${esc(r.client)}" title="Скрыть клиента">✕</button></td>
                   </tr>`;
                   }).join('')}
@@ -1829,7 +1910,7 @@
     const { totals: csvTotals, counts: csvCounts } = buildClientMaps(d.allRows || []);
     const trends = d.clientTrends || {};
     const trendLabel = { up: '↑ Рост', down: '↓ Снижение', same: '→ Без изм.', new: '✦ Новый' };
-    const headers = ['Клиент','Сумма','Дней просрочки','% от ДЗ клиента','Счётов у клиента','Тренд','Группа','Срок оплаты','Направление','Менеджер','Компания','Номер счёта','Статус','Комментарий'];
+    const headers = ['Клиент','Сумма','Дней просрочки','% от ДЗ клиента','Счётов у клиента','Тренд','Группа','Срок оплаты','Направление','Менеджер','Компания','Номер счёта','Статус','След. шаг','Комментарий'];
     const csvEsc = s => { s = String(s==null?'':s); return /[",\n\r;]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
     const lines = [headers.join(';')].concat(rows.map(r => {
       const days = daysOverdue(r.dueDate);
@@ -1838,7 +1919,7 @@
         r.client, r.amount, days ?? '', pct, csvCounts[r.client] || 1,
         trendLabel[trends[r.client]] || '',
         GRP_LABELS[r.group]||r.group, r.dueDate, r.direction,
-        fullMgr(r.manager), r.company, r.invoice, r.status, r.comment
+        fullMgr(r.manager), r.company, r.invoice, r.status, r.nextStep, r.comment
       ].map(csvEsc).join(';');
     }));
     const bom = '\uFEFF';
