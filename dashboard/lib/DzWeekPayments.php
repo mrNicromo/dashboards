@@ -93,11 +93,11 @@ final class DzWeekPayments
 
         $now = new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow'));
         $from = $now->modify('-' . (($weeks + 2) * 7) . ' days')->format('Y-m-d');
-        $formula = "AND({Дата оплаты счета}, IS_AFTER({Дата оплаты счета}, '{$from}'))";
+        $formula = "AND({Статус оплаты}='Оплачен',{Дата оплаты счета},IS_AFTER({Дата оплаты счета},'{$from}'))";
 
         // Без cellFormat: даты приходят как ISO (YYYY-MM-DD), иначе при ru-locale строки ломают разбор.
+        // Берём полную таблицу по формуле, без view — вид может иметь собственные фильтры в Airtable.
         $query = [
-            'view'              => $v,
             'filterByFormula'   => $formula,
             'pageSize'          => '100',
         ];
