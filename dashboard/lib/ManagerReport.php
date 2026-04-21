@@ -712,13 +712,12 @@ final class ManagerReport
     {
         $now = new DateTime('now', new DateTimeZone('Europe/Moscow'));
         $dow = (int) $now->format('N'); // 1=Пн … 7=Вс, Ср=3
-        // Кол-во дней назад до ближайшей прошедшей среды
         $daysBack = ($dow < 3) ? ($dow + 4) : ($dow - 3);
         $thisWed  = clone $now;
         $thisWed->modify("-{$daysBack} days");
-        $prevWed = clone $thisWed;
-        $prevWed->modify('-7 days');
-        return [$prevWed->format('Y-m-d'), $thisWed->format('Y-m-d')];
+        $nextWed = clone $thisWed;
+        $nextWed->modify('+7 days');
+        return [$thisWed->format('Y-m-d'), $nextWed->format('Y-m-d')];
     }
 
     // ------------------------------------------------------------------ //
