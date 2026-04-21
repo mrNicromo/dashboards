@@ -496,8 +496,9 @@ final class ManagerReport
     public static function fetchReport(string $pat, string $baseId): array
     {
         $debtRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::DEBT_VIEW, 'cellFormat' => 'string', 'timeZone' => 'Europe/Moscow', 'userLocale' => 'ru'], $pat);
-        // Вид «оплачено»: без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
-        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['view' => self::PAID_VIEW], $pat);
+        // Полная таблица по формуле, без view — вид может иметь собственные фильтры в Airtable.
+        // Без cellFormat — даты в ISO; иначе Airtable отдаёт «дд.мм.гггг» и фильтр недели отсекает всё.
+        $paidRecs   = Airtable::fetchAllPages($baseId, self::DEBT_TABLE, ['filterByFormula' => "{Статус оплаты}='Оплачен'"], $pat);
         $mrrData    = self::computeMrr($pat, $baseId);
 
         $siteFieldName = '';
