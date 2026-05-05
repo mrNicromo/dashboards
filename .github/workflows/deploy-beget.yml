@@ -1,6 +1,5 @@
 name: Deploy to Beget
 
-# Триггер: пуш в main (или ручной запуск).
 on:
   push:
     branches: [main]
@@ -15,7 +14,6 @@ jobs:
     name: Rsync to Beget over SSH
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: production
 
     steps:
       - name: Checkout
@@ -27,55 +25,34 @@ jobs:
           chmod 700 ~/.ssh
           echo "${{ secrets.BEGET_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          # known_hosts формируется секретом, чтобы не было StrictHostKeyChecking=no
           echo "${{ secrets.BEGET_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-          # На всякий случай — порт по умолчанию (22) если в секрете не задан
-          echo "Host beget" >> ~/.ssh/config
-          echo "  HostName ${{ secrets.BEGET_HOST }}" >> ~/.ssh/config
-          echo "  User     ${{ secrets.BEGET_USER }}" >> ~/.ssh/config
-          echo "  Port     ${{ secrets.BEGET_PORT || '22' }}" >> ~/.ssh/config
-          echo "  IdentityFile ~/.ssh/id_ed25519" >> ~/.ssh/config
+          cat > ~/.ssh/config <<EOF
+          Host beget
+            HostName ${{ secrets.BEGET_HOST }}
+            User     ${{ secrets.BEGET_USER }}
+            Port     22
+            IdentityFile ~/.ssh/id_ed25519
+            ServerAliveInterval 30
+          EOF
           chmod 600 ~/.ssh/config
 
-      - name: Rsync — синхронизация dashboard/
+      - name: Rsync dashboard/ -> public_html
         run: |
           rsync -avz --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude 'node_modules/' \
-            --exclude 'dashboard/cache/' \
-            --exclude 'dashboard/snapshots/' \
-            --exclude 'dashboard/data/' \
-            --exclude 'dashboard/config.php' \
-            --exclude 'portable/' \
-            --exclude 'tools/' \
-            --exclude 'deploy/' \
-            --exclude 'docker/' \
-            --exclude 'docker-compose.yml' \
-            --exclude 'Dockerfile' \
-            --exclude '.dockerignore' \
-            --exclude '.env' \
-            --exclude '.env.example' \
-            --exclude 'LAUNCH.bat' \
-            --exclude 'LAUNCH.command' \
-            --exclude 'cleanup.bat' \
-            --exclude 'cleanup.command' \
-            --exclude 'start.command' \
-            --exclude 'download-portable-php.ps1' \
-            --exclude 'README.md' \
-            --exclude 'README.txt' \
-            --exclude 'DEPLOY.md' \
-            --exclude 'railway.json' \
-            ./ beget:${{ secrets.BEGET_PATH }}
+            --exclude 'cache/' \
+            --exclude 'snapshots/' \
+            --exclude 'data/' \
+            --exclude 'config.php' \
+            --exclude 'cron_warmup.log' \
+            dashboard/ beget:${{ secrets.BEGET_PATH }}/
 
       - name: Прогрев кэша + healthcheck
         run: |
-          ssh beget "cd ${{ secrets.BEGET_PATH }}/dashboard && php cron_warmup.php --only=fact >> /tmp/cron_warmup_$(date +%F).log 2>&1 || true"
-          # healthz проверяем по HTTPS — должен вернуть 'ok'
+          ssh beget "cd ${{ secrets.BEGET_PATH }} && /usr/local/bin/php8.3 cron_warmup.php --only=fact >> /tmp/cron_warmup_$(date +%F).log 2>&1 || true"
           if [ -n "${{ secrets.BEGET_HEALTHZ_URL }}" ]; then
-            curl -fsS --max-time 10 "${{ secrets.BEGET_HEALTHZ_URL }}" || echo "⚠ healthz не отвечает"
+            curl -fsS --max-time 10 "${{ secrets.BEGET_HEALTHZ_URL }}" || echo "WARN: healthz не отвечает"
           fi
 
       - name: Готово
-        run: echo "✅ Deploy на Beget завершён. Главная — ${{ secrets.BEGET_PUBLIC_URL }}"
+        run: echo "Deploy на Beget завершён"

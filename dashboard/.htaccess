@@ -1,0 +1,19 @@
+# Beget shared: переключить Apache на PHP 8.3
+AddHandler application/x-httpd-php83 .php
+
+# Direct file access -> 200, иначе fallback в index
+DirectoryIndex index.php
+
+# Безопасность: не отдавать config.php и cache/ снаружи
+<FilesMatch "^config\.php$">
+  Require all denied
+</FilesMatch>
+<DirectoryMatch "^.*/cache/">
+  Require all denied
+</DirectoryMatch>
+<DirectoryMatch "^.*/data/">
+  Require all denied
+</DirectoryMatch>
+<DirectoryMatch "^.*/snapshots/">
+  Require all denied
+</DirectoryMatch>
