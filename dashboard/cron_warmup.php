@@ -11,7 +11,7 @@
  *
  *   --force        Удаляет кэш-файлы перед прогревом (иначе пропускает свежий кэш)
  *   --only=churn   Прогреть только ChurnReport
- *   --only=fact    Прогреть только ChurnFactReport
+ *   --only=fact    Прогреть только ChurnFactGSheet (Google Sheets)
  *   --only=manager Прогреть только ManagerReport
  */
 declare(strict_types=1);
@@ -25,7 +25,7 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/Airtable.php';
 require_once __DIR__ . '/lib/ChurnReport.php';
-require_once __DIR__ . '/lib/ChurnFactReport.php';
+require_once __DIR__ . '/lib/ChurnFactGSheet.php';
 require_once __DIR__ . '/lib/ManagerReport.php';
 
 // ── Разбор аргументов ────────────────────────────────────────
@@ -64,7 +64,7 @@ function cache_age(string $path): int
 
 // ── Пути к кэш-файлам ───────────────────────────────────────
 $cacheChurn   = __DIR__ . '/cache/churn-report.json';
-$cacheFact    = __DIR__ . '/cache/churn-fact-report.json';
+$cacheFact    = __DIR__ . '/cache/churn-fact-gsheet.json';
 $cacheManager = __DIR__ . '/cache/manager-report.json';  // если используется
 
 // Порог «свежести» — пропускаем прогрев, если кэш моложе 5 минут
@@ -94,9 +94,9 @@ if ($only === null || $only === 'churn' || $only === 'fact') {
     }
 }
 
-// ══ 2. ChurnFactReport ══════════════════════════════════════
+// ══ 2. ChurnFactGSheet (Google Sheets — лист «Потери Q1 2026») ═
 if ($only === null || $only === 'fact') {
-    $tag = 'ChurnFactReport';
+    $tag = 'ChurnFactGSheet';
     if (!$force && cache_age($cacheFact) < FRESH_TTL) {
         log_msg("$tag: кэш свежий, пропускаем (age=" . cache_age($cacheFact) . "s).");
     } else {
@@ -104,21 +104,25 @@ if ($only === null || $only === 'fact') {
         log_msg("$tag: начинаем прогрев…");
         $t0 = microtime(true);
         try {
-            // Используем уже полученные данные ChurnReport, либо загружаем заново
-            if (!isset($churnData)) {
-                $churnData = ChurnReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
+            // Источник потерь — Google Sheets «Потери Q1 2026».
+            // Airtable дёргаем только за prob=3 риском для прогноза (и только если PAT задан).
+            $prob3risk = 0.0; $prob3riskEnt = 0.0; $prob3riskSmb = 0.0;
+            if (!empty($c['airtable_pat']) && !empty($c['airtable_base_id'])) {
+                if (!isset($churnData)) {
+                    try {
+                        $churnData = ChurnReport::fetchReport($c['airtable_pat'], $c['airtable_base_id']);
+                    } catch (Throwable $ignored) {
+                        $churnData = null;
+                    }
+                }
+                if (is_array($churnData)) {
+                    $prob3risk    = (float)($churnData['prob3mrr']     ?? 0);
+                    $prob3riskEnt = (float)($churnData['prob3riskEnt'] ?? 0);
+                    $prob3riskSmb = (float)($churnData['prob3riskSmb'] ?? 0);
+                }
             }
-            $prob3risk    = (float)($churnData['prob3mrr']     ?? 0);
-            $prob3riskEnt = (float)($churnData['prob3riskEnt'] ?? 0);
-            $prob3riskSmb = (float)($churnData['prob3riskSmb'] ?? 0);
 
-            $factData = ChurnFactReport::fetchReport(
-                $c['airtable_pat'],
-                $c['airtable_base_id'],
-                $prob3risk,
-                $prob3riskEnt,
-                $prob3riskSmb
-            );
+            $factData = ChurnFactGSheet::fetchReport($prob3risk, $prob3riskEnt, $prob3riskSmb);
             $elapsed = round(microtime(true) - $t0, 2);
             $months  = count($factData['byMonth'] ?? []);
             log_msg("$tag: OK — $months месяцев, {$elapsed}s.");

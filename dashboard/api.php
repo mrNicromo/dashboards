@@ -10,6 +10,8 @@ require_once __DIR__ . '/lib/DzReport.php';
 require_once __DIR__ . '/lib/ReportHtml.php';
 require_once __DIR__ . '/lib/ReportArchive.php';
 
+csrf_check_or_api_secret();
+
 try {
     $action = isset($_GET['action']) ? (string) $_GET['action'] : 'refresh';
     if ($action === 'snapshots') {

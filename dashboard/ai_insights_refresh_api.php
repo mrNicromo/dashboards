@@ -57,7 +57,7 @@ $forceNoCache = is_array($forceInput) && !empty($forceInput['force']);
 
 if ($forceNoCache) {
     // Явная очистка всех кэшей перед refresh (кнопка "Анализ всех дашбордов")
-    $cacheFiles = ['dz-data-default.json', 'churn-report.json', 'churn-fact-report.json', 'manager-report.json'];
+    $cacheFiles = ['dz-data-default.json', 'churn-report.json', 'churn-fact-report.json', 'churn-fact-gsheet.json', 'manager-report.json'];
     foreach ($cacheFiles as $cf) {
         @unlink($dir . '/' . $cf);
     }
