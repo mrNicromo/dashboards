@@ -34,6 +34,8 @@ jobs:
             Port     22
             IdentityFile ~/.ssh/id_ed25519
             ServerAliveInterval 30
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile ~/.ssh/known_hosts
           EOF
           chmod 600 ~/.ssh/config
 
