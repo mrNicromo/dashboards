@@ -21,7 +21,7 @@ final class AiInsightsContext
     {
         $dz = self::loadJson($dir . '/dz-data-default.json');
         $churn = self::loadJson($dir . '/churn-report.json');
-        $fact = self::loadJson($dir . '/churn-fact-report.json');
+        $fact = self::loadJson($dir . '/churn-fact-gsheet.json');
 
         $inner = self::dzInner($dz);
         $aging = $inner['aging'] ?? [];
@@ -218,7 +218,7 @@ final class AiInsightsContext
     {
         $dzRaw = self::loadJson($dir . '/dz-data-default.json');
         $churn = self::loadJson($dir . '/churn-report.json');
-        $fact = self::loadJson($dir . '/churn-fact-report.json');
+        $fact = self::loadJson($dir . '/churn-fact-gsheet.json');
         $inner = self::dzInner($dzRaw);
 
         $kpi = $inner['kpi'] ?? [];
@@ -574,7 +574,7 @@ final class AiInsightsContext
         require_once __DIR__ . '/DzMrrCache.php';
         require_once __DIR__ . '/DzReport.php';
         require_once __DIR__ . '/ChurnReport.php';
-        require_once __DIR__ . '/ChurnFactReport.php';
+        require_once __DIR__ . '/ChurnFactGSheet.php';
         require_once __DIR__ . '/LegalSiteCatalog.php';
         require_once __DIR__ . '/ManagerReport.php';
 
@@ -619,11 +619,10 @@ final class AiInsightsContext
             AiInsightsSupport::logLine('churn_fetch_warn', ['err' => $e->getMessage()]);
         }
 
-        @unlink($cacheDir . '/churn-fact-report.json');
+        @unlink($cacheDir . '/churn-fact-report.json'); // legacy Airtable-кэш потерь
+        @unlink($cacheDir . '/churn-fact-gsheet.json');
         try {
-            ChurnFactReport::fetchReport(
-                $pat,
-                $base,
+            ChurnFactGSheet::fetchReport(
                 (float) ($churnRisk['prob3mrr'] ?? 0),
                 (float) ($churnRisk['prob3riskEnt'] ?? 0),
                 (float) ($churnRisk['prob3riskSmb'] ?? 0)

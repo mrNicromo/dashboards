@@ -410,7 +410,7 @@
           <div class="cf-quarter-gauges">
             ${gauge('Churn',    f.churn,    t.total, '#FF453A')}
             ${gauge('DownSell', f.downsell, t.total, '#FF9F0A')}
-            ${gauge('SS/SMB/SME+', f.smb,  t.smb,   '#FF9F0A')}
+            ${gauge('SS/SMB/SME-/SME/SME+', f.smb,  t.smb,   '#FF9F0A')}
             ${gauge('Enterprise',  f.ent,  isEntTarget ? t.ent : 0, '#7B61FF')}
           </div>
         </div>`;
@@ -781,13 +781,16 @@
     const quarters = ['Q1','Q2','Q3','Q4'];
     const QUARTER_MONTHS = { Q1:'Янв–Мар', Q2:'Апр–Июн', Q3:'Июл–Сен', Q4:'Окт–Дек' };
 
+    const qRev = d.quarterRevenue || {};
     const cards = quarters.map(q => {
       const qData  = byQ[q] || {};
       const churn  = qData.churn    || 0;
       const total  = qData.total    || 0;
       const ent    = qData.ent      || 0;
       const smb    = qData.smb      || 0;
-      const rev    = mrrMonthly * 3; // квартальная выручка = MRR × 3
+      // Точная выручка на квартал (если задана клиентом), иначе MRR × 3 как приближение
+      const rev    = (qRev[q] && qRev[q] > 0) ? qRev[q] : (mrrMonthly * 3);
+      const revFromExact = !!(qRev[q] && qRev[q] > 0);
       const pct    = rev > 0 ? Math.min(churn / rev * 100, 200) : 0;
       const pctTot = rev > 0 ? Math.min(total / rev * 100, 200) : 0;
       const barW   = Math.min(pct, 100);
@@ -814,7 +817,7 @@
           </div>
           <div class="cf-rev-meta">
             <span>Churn: <b>${fmtR(churn)}</b></span>
-            <span>Выручка ≈ <b>${fmtR(rev)}</b></span>
+            <span>Выручка ${revFromExact ? "" : "≈ "}<b>${fmtR(rev)}</b></span>
           </div>
           <div class="cf-rev-segs">
             <div class="cf-rev-seg"><span class="cf-rev-seg-dot" style="background:#BF5AF2"></span>ENT: ${fmtR(ent)} (${entPct}%)</div>

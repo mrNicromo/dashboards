@@ -41,8 +41,18 @@ final class ChurnFactGSheet
     public const QUARTER_TARGETS = [
         'Q1' => ['total' => 1_449_999, 'smb' => 1_449_999, 'ent' =>         0],
         'Q2' => ['total' => 2_929_999, 'smb' => 1_449_999, 'ent' => 1_480_000],
-        'Q3' => ['total' => 2_350_666, 'smb' => 1_449_999, 'ent' =>   900_000],
+        'Q3' => ['total' => 2_349_999, 'smb' => 1_449_999, 'ent' =>   900_000],
         'Q4' => ['total' => 1_449_999, 'smb' => 1_449_999, 'ent' =>         0],
+    ];
+
+    // ── Квартальная выручка (источник для блока «% Churn от выручки») ──
+    // 0 = данных пока нет, фронт фолбэкнется на (MRR × 3).
+    // Заполнить точные суммы, как только клиент пришлёт цифры по Q1–Q4.
+    public const QUARTER_REVENUE = [
+        'Q1' => 0,
+        'Q2' => 0,
+        'Q3' => 0,
+        'Q4' => 0,
     ];
 
     // ── Помесячные таргеты (из ТЗ) ──────────────────────────────────
@@ -481,6 +491,7 @@ final class ChurnFactGSheet
             'targetEnt'          => self::TARGET_ENT,
             'monthTargets'       => self::MONTH_TARGETS,
             'quarterTargets'     => self::QUARTER_TARGETS,
+            'quarterRevenue'     => self::QUARTER_REVENUE,
             'byMonth'            => array_values($byMonth),
             'byMonthSegment'     => $byMonthSeg,
             'byQuarter'          => $byQuarter,
