@@ -792,7 +792,7 @@
       const rev    = (qRev[q] && qRev[q] > 0) ? qRev[q] : (mrrMonthly * 3);
       const revFromExact = !!(qRev[q] && qRev[q] > 0);
       const pct    = rev > 0 ? Math.min(churn / rev * 100, 200) : 0;
-      const pctTot = rev > 0 ? Math.min(total / rev * 100, 200) : 0;
+      // (total/rev отображается ниже как entPct/smbPct по-сегментно)
       const barW   = Math.min(pct, 100);
       const isOk   = pct <= 5; // норма: churn ≤ 5% квартальной выручки
       const cls    = isOk ? 'ok' : pct <= 10 ? 'warn' : 'bad';
@@ -831,7 +831,7 @@
     return `
       <div class="cf-section" style="margin-top:8px">
         <div class="cf-section-head">
-          <h2>📊 % Churn от выручки ${tip('Доля потерь Churn от квартальной выручки.\nВыручка = MRR × 3 месяца.\nНорма: Churn ≤ 5% квартальной выручки.')}</h2>
+          <h2>📊 % Churn от выручки ${tip('Доля потерь Churn от квартальной выручки.\nИсточник выручки: фиксированные суммы Q1–Q4 (QUARTER_REVENUE) — если заданы, иначе фолбэк MRR × 3.\nНорма: Churn ≤ 5% квартальной выручки.')}</h2>
         </div>
         <div class="cf-rev-grid">${cards}</div>
       </div>`;

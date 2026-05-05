@@ -13,7 +13,7 @@ function readCache(string $path): array {
 
 $dz    = AiInsightsContext::unwrapDzCache(readCache(__DIR__ . '/cache/dz-data-default.json'));
 $churn = readCache(__DIR__ . '/cache/churn-report.json');
-$fact  = readCache(__DIR__ . '/cache/churn-fact-report.json');
+$fact  = readCache(__DIR__ . '/cache/churn-fact-gsheet.json');
 
 // DZ metrics
 $dzTotal    = (float)($dz['totalDebt'] ?? 0);
